@@ -476,7 +476,7 @@ class RobertaQA(torch.nn.Module):
         lr_factors = []
         lr_rate_decay = 0.75
         lr = 3e-5
-        prefix = 'roberta.model.decoder.sentence_encoder.layers.'
+        prefix = 'roberta.decoder.sentence_encoder.layers.'
 
         num_layers = self.roberta.args.encoder_layers
         for k, v in self.state_dict().items():
@@ -537,7 +537,7 @@ def _compute_softmax(scores):
 
 roberta = RobertaQA(roberta_path=roberta_directory)
 
-batch_size = 48
+batch_size = 48 // 8
 num_cores = 8
 num_epochs = 2
 
