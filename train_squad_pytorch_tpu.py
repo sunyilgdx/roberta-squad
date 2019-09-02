@@ -407,10 +407,28 @@ class RobertaQA(torch.nn.Module):
         self.end_n_top = end_n_top
         self.use_ans_class = use_ans_class
 
+    def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
+        if tokens.dim() == 1:
+            tokens = tokens.unsqueeze(0)
+        if tokens.size(-1) > self.roberta.max_positions():
+            raise ValueError('tokens exceeds maximum length: {} > {}'.format(
+                tokens.size(-1), self.roberta.max_positions()
+            ))
+        features, extra = self.roberta(
+            tokens,
+            features_only=True,
+            return_all_hiddens=return_all_hiddens,
+        )
+        if return_all_hiddens:
+            # convert from T x B x C -> B x T x C
+            inner_states = extra['inner_states']
+            return [inner_state.transpose(0, 1) for inner_state in inner_states]
+        else:
+            return features  # just the last layer's features
 
     def forward(self, x, p_mask, start_positions=None, end_positions=None, cls_index=None, is_impossible=None): 
         use_ans_class = self.use_ans_class
-        hidden_states = self.roberta.extract_features(x)  # [bs, seq_len, hs]
+        hidden_states = self.extract_features(x)  # [bs, seq_len, hs]
         
         start_logits = self.start_logits(hidden_states, p_mask=p_mask)
 
@@ -571,9 +589,11 @@ def train_loop_fn(model, loader, device, context):
 
     print('[{}] start'.format(device))
     model.train()
+    print('[{}] train mode'.format(device))
     for x, (inp, p_mask, start, end) in loader:
+      print('[{}]({})'.format(device, x))
       optimizer.zero_grad()
-      loss = model(inp, p_mask, start, end)
+      (loss, ) = model(inp, p_mask, start, end)
       loss.backward()
       xm.optimizer_step(optimizer)
       tracker.add(batch_size)
