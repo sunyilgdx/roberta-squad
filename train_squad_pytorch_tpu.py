@@ -384,6 +384,7 @@ class PoolerAnswerClass(nn.Module):
 
         return x
 
+
 class RobertaQA(torch.nn.Module):
     def __init__(self, 
                  roberta_path='roberta.large',
@@ -393,8 +394,9 @@ class RobertaQA(torch.nn.Module):
                  use_ans_class = False):
         super(RobertaQA, self).__init__()
         
+        roberta = RobertaModel.from_pretrained(roberta_path, checkpoint_file=checkpoint_file)
+        self.roberta = roberta.model
         
-        self.roberta = roberta = RobertaModel.from_pretrained(roberta_path, checkpoint_file=checkpoint_file)
         
         hs = roberta.args.encoder_embed_dim
         self.start_logits = PoolerStartLogits(hs)
@@ -496,7 +498,6 @@ class RobertaQA(torch.nn.Module):
         return lr_factors
       
       
-
 # Eval Utilities
 
 import collections
@@ -563,7 +564,7 @@ train_loader = from_records('qa_records')
 def train_loop_fn(model, loader, device, context):
     optimizer = context.getattr_or(
         'optimizer',
-        lambda: Ranger(model.params(), lr=5e-5))
+        lambda: Ranger(model.params, lr=5e-5))
     tracker = xm.RateTracker()
 
     model.train()
