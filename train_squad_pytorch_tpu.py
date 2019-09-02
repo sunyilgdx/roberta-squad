@@ -537,9 +537,10 @@ def _compute_softmax(scores):
 
 roberta = RobertaQA(roberta_path=roberta_directory)
 
-batch_size = 48 // 8
 num_cores = 8
+batch_size = 48 // num_cores
 num_epochs = 2
+log_steps = 1000
 
 import os
 import time
@@ -561,20 +562,22 @@ model_parallel = dp.DataParallel(roberta, device_ids=devices)
 train_loader = from_records('qa_records')
 
 
+
 def train_loop_fn(model, loader, device, context):
     optimizer = context.getattr_or(
         'optimizer',
         lambda: Ranger(model.params, lr=5e-5))
     tracker = xm.RateTracker()
 
+    print('[{}] start'.format(device))
     model.train()
-    for inp, p_mask, start, end in loader:
+    for x, (inp, p_mask, start, end) in loader:
       optimizer.zero_grad()
       loss = model(inp, p_mask, start, end)
       loss.backward()
       xm.optimizer_step(optimizer)
       tracker.add(batch_size)
-      if x % FLAGS.log_steps == 0:
+      if x % log_steps == 0:
         print('[{}]({}) Loss={:.5f} Rate={:.2f}'.format(device, x, loss.item(),
                                                         tracker.rate()))
 
