@@ -17,7 +17,8 @@ import multiprocessing
 import gc
 import random
 from tqdm import tqdm
-
+import os
+os.environ['XRT_TPU_CONFIG']
 
 roberta_directory = './roberta.large'
 
