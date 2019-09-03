@@ -56,6 +56,9 @@ class Ranger(Optimizer):
         print("set state called")
         super(Ranger, self).__setstate__(state)
        
+    @property
+    def supports_memory_efficient_fp16(self):
+        return True
         
     def step(self, closure=None):
         loss = None
