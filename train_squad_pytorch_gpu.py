@@ -558,15 +558,18 @@ from time import time
 roberta = RobertaQA(roberta_path=roberta_directory)
 
 log_steps = 500
+num_epochs = 2
 max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
 effective_batch_size = 32             # 8  bs per device
 update_freq = 1                       # 4  bs per device
 
+use_gpu = None
 
+assert effective_batch_size % update_freq == 0
 
-batch_size = effective_batch_size
-roberta.half()
+batch_size = effective_batch_size // update_fre
+
 
 
 if num_cores > 1:
@@ -575,15 +578,17 @@ if num_cores > 1:
   
 print("Let's use", num_cores, "GPUs!")
 
+use_gpu = torch.cuda.is_available() if use_gpu is None else use_gpu
 
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if use_gpu else "cpu")
+if use_gpu:
+  roberta.half()
+  
 roberta.to(device)
 
 
-train_loader = from_records('qa_records_squad')
 
-optimizer = Ranger(model.params, lr=5e-5)
+optimizer = Ranger(roberta.params, lr=5e-5)
 
 
 
@@ -591,10 +596,10 @@ accumulated = 0
 loss_sum = 0.
 
 
-
+from time import time
 t0 = time()
 for epoch in range(1, num_epochs + 1):
-    for x, (inp, p_mask, start, end) in train_loader:
+    for x, (inp, p_mask, start, end) in enumerate(from_records('qa_records_squad', batch_size, half=True)):
       accumulated += 1
       update = accumulated >= update_freq
       (loss, ) = roberta(inp.to(device=device), 
@@ -607,15 +612,16 @@ for epoch in range(1, num_epochs + 1):
       if x % log_steps == 0:
         t1 = time()
         rate = batch_size*accumulated/(t1-t0)
-        print('Loss={:.5f} Rate={:.2f}'.format(loss.item(),rate))
+        t0 = time()
+        print('Loss={:.5f} Rate={:.2f}'.format(loss_sum.item(),rate))
                                                         
       if update:
+        loss_sum /= accumulated
+        #torch.nn.utils.clip_grad_norm_(roberta.parameters(), 1.0)
         optimizer.step()
         optimizer.zero_grad()
         accumulated = 0
         loss_sum = 0
-
-
 
 
 
