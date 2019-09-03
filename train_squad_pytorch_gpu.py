@@ -251,7 +251,14 @@ def pad(list_of_tokens,
         i += 1
     return k if torch_tensor is None else torch_tensor(k)
 
-def from_records(records, batch_size = 48):
+  
+def from_records(records, batch_size = 48, half=False):
+    if half:
+      float = torch.HalfTensor
+    else:
+      float = torch.FloatTensor
+  
+  
     fn_style = isinstance(records,str)
     if fn_style:
       def from_file(fn):
@@ -270,7 +277,7 @@ def from_records(records, batch_size = 48):
         start = torch.LongTensor(start)
         end = torch.LongTensor(end)
         inp = pad(inp,dtype=np.long, torch_tensor=torch.LongTensor)
-        p_mask = pad(p_mask,dtype=np.float32, torch_tensor=torch.FloatTensor)
+        p_mask = pad(p_mask,dtype=np.float32, torch_tensor=float)
 
         yield inp, p_mask, start, end
 
@@ -568,7 +575,7 @@ use_gpu = None
 
 assert effective_batch_size % update_freq == 0
 
-batch_size = effective_batch_size // update_fre
+batch_size = effective_batch_size // update_freq
 
 
 
@@ -588,7 +595,7 @@ roberta.to(device)
 
 
 
-optimizer = Ranger(roberta.params, lr=5e-5)
+optimizer = Ranger(roberta.params if num_cores <= 1 else roberta.module.params, lr=5e-5)
 
 
 
