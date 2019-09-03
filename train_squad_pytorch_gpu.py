@@ -285,7 +285,14 @@ def from_records(records, batch_size = 48, half=False):
 
 # Model Utilities
 
-
+MAX_FLOAT16 = 2**15
+MIN_FLOAT16 = 6e-5
+MAX_FLOAT32 = 1e30
+MIN_FLOAT32 = 1e-12
+max_float = MAX_FLOAT16
+min_float = MIN_FLOAT16
+max_float = MAX_FLOAT32
+min_float = MIN_FLOAT32
 
 class PoolerStartLogits(nn.Module):
     """ Compute SQuAD start_logits from sequence hidden states. """
@@ -302,7 +309,7 @@ class PoolerStartLogits(nn.Module):
         x = self.dense(hidden_states).squeeze(-1)
 
         if p_mask is not None:
-            x = x * (1 - p_mask) - 1e30 * p_mask
+            x = x * (1 - p_mask) - max_float * p_mask
 
         return x
 
@@ -314,7 +321,7 @@ class PoolerEndLogits(nn.Module):
         super(PoolerEndLogits, self).__init__()
         self.dense_0 = nn.Linear(hidden_size * 2, hidden_size)
         self.activation = nn.Tanh()
-        self.LayerNorm = nn.LayerNorm(hidden_size, eps=1e-12)
+        self.LayerNorm = nn.LayerNorm(hidden_size, eps=min_float)
         self.dense_1 = nn.Linear(hidden_size, 1)
 
     def forward(self, hidden_states, start_states=None, start_positions=None, p_mask=None):
@@ -343,7 +350,7 @@ class PoolerEndLogits(nn.Module):
         x = self.dense_1(x).squeeze(-1)
 
         if p_mask is not None:
-            x = x * (1 - p_mask) - 1e30 * p_mask
+            x = x * (1 - p_mask) - max_float * p_mask
 
         return x
 
@@ -570,6 +577,7 @@ max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
 effective_batch_size = 32             # 8  bs per device
 update_freq = 1                       # 4  bs per device
+fp16 = True
 
 use_gpu = None
 
@@ -588,7 +596,15 @@ print("Let's use", num_cores, "GPUs!")
 use_gpu = torch.cuda.is_available() if use_gpu is None else use_gpu
 
 device = torch.device("cuda:0" if use_gpu else "cpu")
-if use_gpu:
+
+
+if not use_gpu:
+  fp16 = False
+
+
+if fp16:
+  max_float = MAX_FLOAT16
+  min_float = MIN_FLOAT16
   roberta.half()
   
 roberta.to(device)
@@ -613,6 +629,8 @@ for epoch in range(1, num_epochs + 1):
                        p_mask.to(device=device), 
                        start.to(device=device), 
                        end.to(device=device))
+      if num_cores > 1:
+        loss = loss.sum()
       loss.backward()
       loss_sum += loss
       
