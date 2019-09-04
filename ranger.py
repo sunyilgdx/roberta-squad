@@ -57,6 +57,19 @@ class Ranger(Optimizer):
         super(Ranger, self).__setstate__(state)
        
     @property
+    def params(self):
+        """Return an iterable of the parameters held by the optimizer."""
+        for param_group in self.param_groups:
+            for p in param_group['params']:
+                yield p
+
+
+    def multiply_grads(self, c):
+        """Multiplies grads by a constant *c*."""
+        for p in self.params:
+            if p.grad is not None:
+                p.grad.data.mul_(c)
+    @property
     def supports_memory_efficient_fp16(self):
         return True
         
