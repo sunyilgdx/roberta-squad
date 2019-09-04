@@ -658,10 +658,15 @@ for epoch in range(1, num_epochs + 1):
                        end.to(device=device))
       if num_cores > 1:
         loss = loss.sum()
-      loss.backward()
+      
+      if fp16:
+        optimizer.backward(loss)
+      else
+        loss.backward()
+      
       loss_sum += loss                             
       if update:
-        loss_sum /= accumulated
+        loss_sum /= num_cores
         #torch.nn.utils.clip_grad_norm_(roberta.parameters(), 1.0)
         optimizer.step()
         optimizer.zero_grad()
@@ -672,7 +677,7 @@ for epoch in range(1, num_epochs + 1):
       if x % log_steps == 0:
         t1 = time()
         rate = (x+1)/(t1-t0)
-        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}'.format(loss_sum.item()/num_cores,rate), (num_steps-x-1)/rate, t1-t0)
+        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate), (num_steps-x-1)/rate, t1-t0)
                            
 
 
