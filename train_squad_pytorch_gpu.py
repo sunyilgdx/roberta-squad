@@ -609,15 +609,15 @@ roberta.to(device)
 params = roberta.params
   
 optimizer = Ranger(params, lr=5e-5)
-if fp16:
-  optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
-
 
 if num_cores > 1:
   roberta, optimizer = amp.initialize(roberta, optimizer, opt_level="O3", keep_batchnorm_fp32=True, loss_scale="dynamic")
 
 
   
+if fp16:
+  optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
+
 
 
 if num_cores > 1:
