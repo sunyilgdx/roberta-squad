@@ -423,6 +423,8 @@ class RobertaQA(torch.nn.Module):
             args.max_positions = args.tokens_per_sample
 
         self.dictionary = dictionary = Dictionary.load(os.path.join(roberta_path, 'dict.txt'))
+        dictionary.add_symbol('<mask>')
+
         model = RobertaModel(args, RobertaEncoder(args, dictionary))
         self.args = args
         
@@ -436,6 +438,8 @@ class RobertaQA(torch.nn.Module):
         self.start_n_top = start_n_top
         self.end_n_top = end_n_top
         self.use_ans_class = use_ans_class
+        
+        print('loading from checkpoint...')
         self.load_state_dict(state['model'], strict=True)
 
     def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
