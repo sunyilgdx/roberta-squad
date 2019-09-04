@@ -654,7 +654,7 @@ for e in gen(eval_dir):
   
 records, rs = generate_tfrecord(eval_dir, is_training=False, parallel_process=False, return_feature=True)
 
-batches = tqdm(zip(from_records(records,batch_size, half=fp16), chunks(rs,batch_size)))
+batches = list(zip(from_records(records,batch_size, half=fp16), chunks(rs,batch_size)))
 
 prediction_by_qid = {}
 scores_diff_json = {}
