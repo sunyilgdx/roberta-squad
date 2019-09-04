@@ -704,7 +704,10 @@ def handle_prediction_by_qid(self,
 
       else:
         start_top_log_probs, start_top_index, end_top_log_probs, end_top_index = result
-
+        start_top_log_probs = start_top_log_probs.tolist()
+        start_top_index = start_top_index.tolist()
+        end_top_log_probs = end_top_log_probs.tolist()
+        end_top_index = end_top_index.tolist()
         
         for i in range(self.start_n_top):
             for j in range(self.end_n_top):
