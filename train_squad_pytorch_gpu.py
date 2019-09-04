@@ -1,8 +1,7 @@
 from torch import nn
 import argparse
 from fairseq.data import Dictionary
-from fairseq.models.masked_lm import MaskedLMEncoder
-from fairseq.models.masked_lm import MaskedLMEncoder, base_architecture as masked_lm_base_architecture
+from fairseq.models.roberta import RobertaModel, roberta_large_architecture
 from fairseq.optim.fp16_optimizer import MemoryEfficientFP16Optimizer
 import torch
 from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT
@@ -418,18 +417,19 @@ class RobertaQA(torch.nn.Module):
         state = torch.load(os.path.join(roberta_path, checkpoint_file))
         
         args = state['args']
-        masked_lm_base_architecture(args)
+        roberta_large_architecture(args)
 
         if not hasattr(args, 'max_positions'):
             args.max_positions = args.tokens_per_sample
+
         self.dictionary = dictionary = Dictionary.load(os.path.join(roberta_path, 'dict.txt'))
-        model = MaskedLMEncoder(args, dictionary)
+        model = RobertaModel(args, dictionary)
         model.load_state_dict(state['model'], strict=True)
         self.args = args
         
         self.roberta = model
         
-        hs = roberta.args.encoder_embed_dim
+        hs = args.encoder_embed_dim
         self.start_logits = PoolerStartLogits(hs)
         self.end_logits = PoolerEndLogits(hs)
         self.answer_class = PoolerAnswerClass(hs)
