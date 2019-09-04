@@ -823,7 +823,7 @@ def handle_prediction_by_qid(self,
       total_scores.append(entry.start_log_prob + entry.end_log_prob)
       if not best_non_null_entry:
         best_non_null_entry = entry
-        best_null_score = -(entry.start_log_prob + entry.end_log_prob - entry.cur_null_score[0]) # entry.cur_null_score
+        best_null_score = -(entry.start_log_prob + entry.end_log_prob - entry.cur_null_score) # entry.cur_null_score
         best_score_no_ans = entry.cur_null_score
 
     probs = _compute_softmax(total_scores)
@@ -844,7 +844,7 @@ def handle_prediction_by_qid(self,
       print('A:', ans, '(',best_null_score,')',  '[',best_score_no_ans,']', )
       print('Truth:', truth)
       print('')
-    score += compute_f1(truth, ans)
+      score += compute_f1(truth, ans)
 
     assert len(nbest_json) >= 1
     assert best_non_null_entry is not None
@@ -854,7 +854,8 @@ def handle_prediction_by_qid(self,
     scores_diff_json[qid] = best_score_no_ans
   
   
-  print('score: ', score, '/', len(all_predictions), '=', score / len(all_predictions))
+  if debug:
+    print('score: ', score, '/', len(all_predictions), '=', score / len(all_predictions))
   
   
   return nbest_json, all_predictions, scores_diff_json
