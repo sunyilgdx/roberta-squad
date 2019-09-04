@@ -654,13 +654,14 @@ for e in gen(eval_dir):
   
 records, rs = generate_tfrecord(eval_dir, is_training=False, parallel_process=False, return_feature=True)
 
+batches = tqdm(zip(from_records(records,batch_size, half=fp16), chunks(rs,batch_size)))
 
 prediction_by_qid = {}
 scores_diff_json = {}
 with torch.no_grad():
-  for e, rs in zip(from_records(records,batch_size), chunks(rs,batch_size)):
+  for e, rs in tqdm(batches):
     inp, p_mask, start, end = e
-    result_tuples = roberta(inp, p_mask)
+    result_tuples = roberta(inp.to(device=device), p_mask.to(device=device))
     
     for result, r in zip(zip(*result_tuples), rs):
       qid = r.qid
