@@ -1,6 +1,7 @@
 from torch import nn
 
 from fairseq.models.roberta import RobertaModel
+from fairseq.optim.fp16_optimizer import MemoryEfficientFP16Optimizer
 import torch
 from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT
 from glob import glob
@@ -96,7 +97,7 @@ def work(ss, debug=False):
      context, \
      qas, \
      is_training, \
-     return_feature, rss
+     return_feature, rss, start_position, end_position
     
     unique_index, \
      context, \
@@ -104,7 +105,7 @@ def work(ss, debug=False):
      is_training, \
      return_feature = ss
     
-    rss = tokenizer.merge_cq(context, 
+    rss = tokenizer.merge_cq(context.replace('<eop> ','\n'), 
                              qas,
                              max_seq_length = max_seq_length,
                              max_query_length = max_query_length,
@@ -124,6 +125,15 @@ def work(ss, debug=False):
             start_position,end_position = char_anchors_to_tok_pos(r)
             p_mask = r.p_mask
             uid = r.unique_index[0]*1000 + r.unique_index[1]
+            if start_position == -1 and end_position == -1:
+                start_position = len(inp) - 3
+                end_position = len(inp) - 2
+            # tk.convert_tokens_to_ids(tk.createTokens('d. No answer').all_doc_tokens)
+            
+            no_ans = inp[start_position] == 440 and  inp[end_position] == 1948
+            #if no_ans:
+            #    print(q['answer_text'], '>>', r.all_doc_tokens[start_position:end_position+1])
+            assert start_position >= 0 and end_position >= 0 and start_position < len(inp) and end_position < len(inp)
             record = marshal.dumps(
                 (
                 uid,
@@ -134,12 +144,6 @@ def work(ss, debug=False):
                 )
             )
             
-            # tk.convert_tokens_to_ids(tk.createTokens('d. No answer').all_doc_tokens)
-            
-            no_ans = ids_equal_no_ans(inp,start_position,end_position)
-            #if no_ans:
-            #    print(q['answer_text'], '>>', r.all_doc_tokens[start_position:end_position+1])
-            
             if return_feature:
                 results.append((record, no_ans,r))
             else:
@@ -148,6 +152,7 @@ def work(ss, debug=False):
 
     
     return results
+
 
 
 
@@ -571,6 +576,10 @@ from time import time
 
 roberta = RobertaQA(roberta_path=roberta_directory)
 
+
+  
+
+
 log_steps = 500
 num_epochs = 2
 max_seq_length = 512
@@ -578,6 +587,16 @@ num_cores = torch.cuda.device_count() # 8
 effective_batch_size = 32             # 8  bs per device
 update_freq = 1                       # 4  bs per device
 fp16 = True
+class args:
+  update_freq=update_freq
+  fp16_scale_window=128
+  distributed_world_size=1
+  fp16_init_scale=4
+  fp16_scale_tolerance=0
+  threshold_loss_scale=1
+  min_loss_scale
+  
+  
 
 use_gpu = None
 
@@ -602,18 +621,24 @@ if not use_gpu:
   fp16 = False
 
 
+roberta.to(device)
+
 if fp16:
   max_float = MAX_FLOAT16
   min_float = MIN_FLOAT16
   roberta.half()
   
-roberta.to(device)
+params = roberta.params if num_cores <= 1 else roberta.module.params
+  
+optimizer = Ranger(params, lr=5e-5)
+
+optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
 
 
 
-optimizer = Ranger(roberta.params if num_cores <= 1 else roberta.module.params, lr=5e-5)
-
-
+data = list((from_records('qa_records_squad', batch_size, half=True)))
+print('batch_size:  ',batch_size)
+print('number_steps:',len(data) * num_epochs)
 
 accumulated = 0
 loss_sum = 0.
@@ -622,7 +647,7 @@ loss_sum = 0.
 from time import time
 t0 = time()
 for epoch in range(1, num_epochs + 1):
-    for x, (inp, p_mask, start, end) in enumerate(from_records('qa_records_squad', batch_size, half=True)):
+    for x, (inp, p_mask, start, end) in enumerate(data):
       accumulated += 1
       update = accumulated >= update_freq
       (loss, ) = roberta(inp.to(device=device), 
@@ -638,7 +663,7 @@ for epoch in range(1, num_epochs + 1):
         t1 = time()
         rate = batch_size*accumulated/(t1-t0)
         t0 = time()
-        print('Loss={:.5f} Rate={:.2f}'.format(loss_sum.item(),rate))
+        print('Loss={:.5f} Rate={:.2f}'.format(loss_sum.item()/accumulated,rate))
                                                         
       if update:
         loss_sum /= accumulated
