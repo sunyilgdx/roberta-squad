@@ -511,7 +511,7 @@ class RobertaQA(torch.nn.Module):
     def params(self, lr=3e-5, lr_rate_decay=0.75):
         lr_factors = []
         lr_rate_decay = 0.75
-        lr = 3e-5
+        lr = 5e-5
         prefix = 'roberta.decoder.sentence_encoder.layers.'
 
         num_layers = self.roberta.args.encoder_layers
@@ -580,7 +580,7 @@ roberta = RobertaQA(roberta_path=roberta_directory)
   
 
 
-log_steps = 500
+log_steps = 100
 num_epochs = 2
 max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
@@ -628,18 +628,19 @@ if fp16:
   min_float = MIN_FLOAT16
   roberta.half()
   
-params = roberta.params if num_cores <= 1 else roberta.module.params
+params = roberta.parameters()
   
-optimizer = Ranger(params, lr=3e-3)
+optimizer = Ranger(params, lr=5e-5)
 
 if fp16:
   optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
 
 
 
-data = list((from_records('qa_records_squad', batch_size, half=True)))
+data = list((from_records('qa_records_squad', batch_size, half=fp16)))
+num_steps = len(data) * num_epochs
 print('batch_size:  ',batch_size)
-print('number_steps:',len(data) * num_epochs)
+print('number_steps:',num_steps)
 
 accumulated = 0
 loss_sum = 0.
@@ -657,15 +658,8 @@ for epoch in range(1, num_epochs + 1):
                        end.to(device=device))
       if num_cores > 1:
         loss = loss.sum()
-      optimizer.backward(loss)
-      loss_sum += loss
-      
-      if x % log_steps == 0:
-        t1 = time()
-        rate = batch_size*accumulated/(t1-t0)
-        t0 = time()
-        print('Loss={:.5f} Rate={:.2f}'.format(loss_sum.item()/num_cores,rate))
-                                                        
+      loss.backward()
+      loss_sum += loss                             
       if update:
         loss_sum /= accumulated
         #torch.nn.utils.clip_grad_norm_(roberta.parameters(), 1.0)
@@ -674,6 +668,12 @@ for epoch in range(1, num_epochs + 1):
         accumulated = 0
         loss_sum = 0
 
+      
+      if x % log_steps == 0:
+        t1 = time()
+        rate = (x+1)/(t1-t0)
+        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}'.format(loss_sum.item()/num_cores,rate), (num_steps-x-1)/rate, t1-t0)
+                           
 
 
 torch.save(roberta.state_dict(), 'roberta_qa.pt')
