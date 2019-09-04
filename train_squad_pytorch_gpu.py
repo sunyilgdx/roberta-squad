@@ -603,7 +603,7 @@ max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
 effective_batch_size = 24             # 8  bs per device
 update_freq = 1                       # 4  bs per device
-fp16 = False
+fp16 = True
 class args:
   update_freq=update_freq
   fp16_scale_window=128
