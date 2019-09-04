@@ -630,7 +630,7 @@ if fp16:
   
 params = roberta.params if num_cores <= 1 else roberta.module.params
   
-optimizer = Ranger(params, lr=5e-3)
+optimizer = Ranger(params, lr=3e-3)
 
 if fp16:
   optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
@@ -664,7 +664,7 @@ for epoch in range(1, num_epochs + 1):
         t1 = time()
         rate = batch_size*accumulated/(t1-t0)
         t0 = time()
-        print('Loss={:.5f} Rate={:.2f}'.format(loss_sum.item()/accumulated,rate))
+        print('Loss={:.5f} Rate={:.2f}'.format(loss_sum.item()/num_cores,rate))
                                                         
       if update:
         loss_sum /= accumulated
