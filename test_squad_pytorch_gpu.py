@@ -1,7 +1,7 @@
 from torch import nn
 import argparse
 from fairseq.data import Dictionary
-from fairseq.tasks.masked_lm import MaskedLMTask
+from fairseq.models.masked_lm import MaskedLMEncoder
 from fairseq.optim.fp16_optimizer import MemoryEfficientFP16Optimizer
 import torch
 from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT
@@ -418,7 +418,7 @@ class RobertaQA(torch.nn.Module):
         
         args = state['args']
         self.dictionary = dictionary = Dictionary.load(os.path.join(roberta_path, 'dict.txt'))
-        model = MaskedLMTask(args, dictionary)
+        model = MaskedLMEncoder(args, dictionary)
         model.load_state_dict(state['model'], strict=True)
         self.args = args
         
