@@ -574,21 +574,6 @@ def _compute_softmax(scores):
 # Model Init
 
 
-from time import time
-
-roberta = RobertaQA(roberta_path=roberta_directory)
-
-params = roberta.params if num_cores <= 1 else roberta.module.params
-  
-optimizer = Ranger(params, lr=5e-5)
-
-if num_cores > 1:
-  roberta, optimizer = amp.initialize(roberta, optimizer, opt_level="O3", keep_batchnorm_fp32=True, loss_scale="dynamic")
-
-
-  
-
-
 log_steps = 500
 num_epochs = 2
 max_seq_length = 512
@@ -607,6 +592,21 @@ batch_size = effective_batch_size // update_freq
 from apex import amp
 from apex.parallel import DistributedDataParallel
 from apex.optimizers import FusedAdam, FP16_Optimizer
+
+from time import time
+
+roberta = RobertaQA(roberta_path=roberta_directory)
+
+params = roberta.params if num_cores <= 1 else roberta.module.params
+  
+optimizer = Ranger(params, lr=5e-5)
+
+if num_cores > 1:
+  roberta, optimizer = amp.initialize(roberta, optimizer, opt_level="O3", keep_batchnorm_fp32=True, loss_scale="dynamic")
+
+
+  
+
 
 if num_cores > 1:
   roberta = nn.DataParallel(roberta)
