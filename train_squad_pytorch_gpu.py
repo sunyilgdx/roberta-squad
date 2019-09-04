@@ -627,10 +627,10 @@ params = roberta.params if num_cores <= 1 else roberta.module.params
 optimizer = Ranger(params, lr=5e-5)
 
 if num_cores > 1:
-  model, optimizer = amp.initialize(model, optimizer, opt_level="O3", keep_batchnorm_fp32=True, loss_scale="dynamic")
+  roberta, optimizer = amp.initialize(roberta, optimizer, opt_level="O3", keep_batchnorm_fp32=True, loss_scale="dynamic")
 
 if fp16:
-  optimizer = FP16_Optimizer(args, params, optimizer)
+  optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
 
 
 data = list((from_records('qa_records_squad', batch_size, half=fp16)))
