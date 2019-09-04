@@ -424,7 +424,6 @@ class RobertaQA(torch.nn.Module):
 
         self.dictionary = dictionary = Dictionary.load(os.path.join(roberta_path, 'dict.txt'))
         model = RobertaModel(args, RobertaEncoder(args, dictionary))
-        model.load_state_dict(state['model'], strict=True)
         self.args = args
         
         self.roberta = model
@@ -437,6 +436,7 @@ class RobertaQA(torch.nn.Module):
         self.start_n_top = start_n_top
         self.end_n_top = end_n_top
         self.use_ans_class = use_ans_class
+        model.load_state_dict(state['model'], strict=True)
 
     def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
         if tokens.dim() == 1:
