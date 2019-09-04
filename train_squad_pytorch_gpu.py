@@ -597,7 +597,7 @@ from time import time
 
 roberta = RobertaQA(roberta_path=roberta_directory)
 
-params = roberta.params if num_cores <= 1 else roberta.module.params
+params = roberta.params
   
 optimizer = Ranger(params, lr=5e-5)
 
