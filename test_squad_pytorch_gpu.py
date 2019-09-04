@@ -423,7 +423,7 @@ class RobertaQA(torch.nn.Module):
             args.max_positions = args.tokens_per_sample
 
         self.dictionary = dictionary = Dictionary.load(os.path.join(roberta_path, 'dict.txt'))
-        model = RobertaModel(args, dictionary)
+        model = RobertaModel(args, RobertaEncoder(args, dictionary))
         model.load_state_dict(state['model'], strict=True)
         self.args = args
         
