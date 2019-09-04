@@ -440,7 +440,7 @@ class RobertaQA(torch.nn.Module):
         self.use_ans_class = use_ans_class
         
         print('loading from checkpoint...')
-        self.load_state_dict(state['model'], strict=True)
+        self.load_state_dict(state['model'], strict=False)
 
     def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
         if tokens.dim() == 1:
