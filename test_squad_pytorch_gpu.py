@@ -1,6 +1,5 @@
 from torch import nn
-
-from fairseq.models.roberta import RobertaModel
+import argparse
 from fairseq.optim.fp16_optimizer import MemoryEfficientFP16Optimizer
 import torch
 from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT
@@ -411,10 +410,17 @@ class RobertaQA(torch.nn.Module):
                  end_n_top = 5,
                  use_ans_class = False):
         super(RobertaQA, self).__init__()
+        from fairseq import tasks
         
-        roberta = RobertaModel.from_pretrained(roberta_path, checkpoint_file=checkpoint_file)
-        self.roberta = roberta.model
+        state = torch.load(os.path.join(roberta_path, checkpoint_file))
         
+        args = state['args']
+        task = tasks.setup_task(args)
+        model = task.build_model(args)
+        model.load_state_dict(state['model'], strict=True)
+        self.args = args
+        
+        self.roberta = model
         
         hs = roberta.args.encoder_embed_dim
         self.start_logits = PoolerStartLogits(hs)
@@ -511,7 +517,7 @@ class RobertaQA(torch.nn.Module):
     def params(self, lr=3e-5, lr_rate_decay=0.75):
         lr_factors = []
         lr_rate_decay = 0.75
-        lr = 3e-5
+        lr = 5e-5
         prefix = 'roberta.decoder.sentence_encoder.layers.'
 
         num_layers = self.roberta.args.encoder_layers
