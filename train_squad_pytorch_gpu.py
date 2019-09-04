@@ -597,9 +597,21 @@ from time import time
 
 roberta = RobertaQA(roberta_path=roberta_directory)
 
+use_gpu = torch.cuda.is_available() if use_gpu is None else use_gpu
+
+device = torch.device("cuda:0" if use_gpu else "cpu")
+
+if not use_gpu:
+  fp16 = False
+
+roberta.to(device)
+
 params = roberta.params
   
 optimizer = Ranger(params, lr=5e-5)
+if fp16:
+  optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
+
 
 if num_cores > 1:
   roberta, optimizer = amp.initialize(roberta, optimizer, opt_level="O3", keep_batchnorm_fp32=True, loss_scale="dynamic")
@@ -613,25 +625,12 @@ if num_cores > 1:
   
 print("Let's use", num_cores, "GPUs!")
 
-use_gpu = torch.cuda.is_available() if use_gpu is None else use_gpu
-
-device = torch.device("cuda:0" if use_gpu else "cpu")
-
-
-if not use_gpu:
-  fp16 = False
-
-
-roberta.to(device)
 
 if fp16:
   max_float = MAX_FLOAT16
   min_float = MIN_FLOAT16
-  roberta.half()
+  #roberta.half()
   
-if fp16:
-  optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
-
 
 data = list((from_records('qa_records_squad', batch_size, half=fp16)))
 print('batch_size:  ',batch_size)
