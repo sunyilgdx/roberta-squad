@@ -671,17 +671,21 @@ with torch.no_grad():
       if qid not in prediction_by_qid:
         prediction_by_qid[qid] = []
       prediction_by_qid[qid].append((result, r))
-      
+
+
+from squad_evaluation import compute_f1
 
 def handle_prediction_by_qid(self, 
                              prediction_by_qid, 
                              n_best_size = 5,
-                             max_answer_length = 48):
+                             threshold = -1.5,
+                             max_answer_length = 48,
+                             debug = False):
   global prelim_predictions
   use_ans_class = self.use_ans_class
   all_predictions = {}
   scores_diff_json = {}
-
+  score = 0
   for qid, predictions in prediction_by_qid.items():
     q = orig_data[qid]
     ri = 0
@@ -831,15 +835,29 @@ def handle_prediction_by_qid(self,
       output["end_log_prob"] = entry.end_log_prob
       nbest_json.append(output)
 
+    if debug:
+      ans = best_non_null_entry.text if best_null_score < threshold else '*No answer*'
+      truth = q['answer_text'] or '*No answer*'
+      print('Q:', q['question'])
+      print('A:', ans, '(',best_null_score,')')
+      print('Truth:', truth)
+      print('')
+      score += compute_f1(truth, ans)
+
     assert len(nbest_json) >= 1
     assert best_non_null_entry is not None
 
+
     all_predictions[qid] = best_non_null_entry.text
     scores_diff_json[qid] = best_null_score
-
+  
+  
+  print('score: ', score, '/', len(all_predictions), '=', score / len(all_predictions))
+  
+  
   return nbest_json, all_predictions, scores_diff_json
 
-nbest_json, all_predictions, scores_diff_json = handle_prediction_by_qid(roberta_single, prediction_by_qid)
+nbest_json, all_predictions, scores_diff_json = handle_prediction_by_qid(roberta_single, prediction_by_qid, debug=False)
 
 
 
