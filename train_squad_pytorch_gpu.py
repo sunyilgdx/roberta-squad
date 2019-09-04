@@ -578,6 +578,13 @@ from time import time
 
 roberta = RobertaQA(roberta_path=roberta_directory)
 
+params = roberta.params if num_cores <= 1 else roberta.module.params
+  
+optimizer = Ranger(params, lr=5e-5)
+
+if num_cores > 1:
+  roberta, optimizer = amp.initialize(roberta, optimizer, opt_level="O3", keep_batchnorm_fp32=True, loss_scale="dynamic")
+
 
   
 
@@ -622,13 +629,6 @@ if fp16:
   min_float = MIN_FLOAT16
   roberta.half()
   
-params = roberta.params if num_cores <= 1 else roberta.module.params
-  
-optimizer = Ranger(params, lr=5e-5)
-
-if num_cores > 1:
-  roberta, optimizer = amp.initialize(roberta, optimizer, opt_level="O3", keep_batchnorm_fp32=True, loss_scale="dynamic")
-
 if fp16:
   optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
 
