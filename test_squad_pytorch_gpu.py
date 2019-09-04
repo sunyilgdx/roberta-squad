@@ -841,9 +841,14 @@ nbest_json, all_predictions, scores_diff_json = handle_prediction_by_qid(roberta
 
 
 from squad_evaluation import evaluate
+with open(eval_dir, "r") as f:
+  predict_data = json.load(f)["data"]
 result, exact_raw, f1_raw, wrongs = evaluate(predict_data, 
                                              all_predictions, 
                                              na_probs=scores_diff_json, 
                                              na_prob_thresh=0, 
                                              out_file=None, 
                                              out_image_dir=None)
+
+import code
+code.interact(local=locals())

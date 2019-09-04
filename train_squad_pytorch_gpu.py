@@ -601,9 +601,9 @@ log_steps = 100
 num_epochs = 2
 max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
-effective_batch_size = 32             # 8  bs per device
+effective_batch_size = 24             # 8  bs per device
 update_freq = 1                       # 4  bs per device
-fp16 = True
+fp16 = False
 class args:
   update_freq=update_freq
   fp16_scale_window=128
@@ -647,7 +647,7 @@ if fp16:
   
 params = roberta.parameters()
   
-optimizer = Ranger(params, lr=5e-5)
+optimizer = Ranger(params, lr=3e-5)
 
 if fp16:
   optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
@@ -700,7 +700,7 @@ for epoch in range(1, num_epochs + 1):
         accumulated = 0
         loss_sum = 0
 
-setattr(args, 'data', 
+
 torch.save({'model':roberta.state_dict(), 'args': roberta.args}, 'roberta_qa.pt')
 
 
