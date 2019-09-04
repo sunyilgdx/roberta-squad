@@ -615,9 +615,6 @@ if num_cores > 1:
 
 
   
-if fp16:
-  optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
-
 
 
 if num_cores > 1:
