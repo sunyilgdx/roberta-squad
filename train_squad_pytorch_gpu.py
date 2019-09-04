@@ -599,6 +599,7 @@ batch_size = effective_batch_size // update_freq
 
 from apex import amp
 from apex.parallel import DistributedDataParallel
+from apex.optimizers import FusedAdam, FP16_Optimizer
 if num_cores > 1:
   roberta = DistributedDataParallel(roberta)
   
@@ -628,7 +629,7 @@ if num_cores > 1:
   model, optimizer = amp.initialize(model, optimizer, opt_level="O3", keep_batchnorm_fp32=True, loss_scale="dynamic")
 
 if fp16:
-  optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
+  optimizer = FP16_Optimizer(args, params, optimizer)
 
 
 data = list((from_records('qa_records_squad', batch_size, half=fp16)))
