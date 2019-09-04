@@ -410,13 +410,13 @@ class RobertaQA(torch.nn.Module):
                  end_n_top = 5,
                  use_ans_class = False):
         super(RobertaQA, self).__init__()
-        from fairseq import tasks
+		
         
         state = torch.load(os.path.join(roberta_path, checkpoint_file))
         
         args = state['args']
-        task = tasks.setup_task(args)
-        model = task.build_model(args)
+        self.dictionary = dictionary = Dictionary.load(os.path.join(roberta_path, 'dict.txt'))
+        model = MaskedLMTask(args, dictionary)
         model.load_state_dict(state['model'], strict=True)
         self.args = args
         
@@ -580,7 +580,7 @@ def _compute_softmax(scores):
 
 from time import time
 
-roberta = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa.pt')
+roberta = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa_new.pt')
 
 
 
