@@ -590,7 +590,7 @@ def _compute_softmax(scores):
 
 from time import time
 
-roberta = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa_new.pt')
+roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa_new.pt')
 
 
 
@@ -621,7 +621,7 @@ batch_size = effective_batch_size // update_freq
 
 
 if num_cores > 1:
-  roberta = nn.DataParallel(roberta)
+  roberta = nn.DataParallel(roberta_single)
 
   
 print("Let's use", num_cores, "GPUs!")
@@ -836,7 +836,7 @@ def handle_prediction_by_qid(self,
 
   return nbest_json, all_predictions, scores_diff_json
 
-nbest_json, all_predictions, scores_diff_json = handle_prediction_by_qid(roberta, prediction_by_qid)
+nbest_json, all_predictions, scores_diff_json = handle_prediction_by_qid(roberta_single, prediction_by_qid)
 
 
 
