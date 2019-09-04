@@ -654,8 +654,8 @@ for e in gen(eval_dir):
   
 records, rs = generate_tfrecord(eval_dir, is_training=False, parallel_process=False, return_feature=True)
 
-records = records[:100]
-rs = rs[:100]
+records = records
+rs = rs
 
 
 batches = list(zip(from_records(records,batch_size, half=fp16), chunks(rs,batch_size)))
@@ -762,7 +762,7 @@ def handle_prediction_by_qid(self,
 
     prelim_predictions = sorted(
         prelim_predictions,
-        key=lambda x: (x.start_log_prob + x.end_log_prob),
+        key=lambda x: (x.start_log_prob + x.end_log_prob - x.cur_null_score[0]),
         reverse=True)
 
     seen_predictions = {}
@@ -818,11 +818,13 @@ def handle_prediction_by_qid(self,
     total_scores = []
     best_non_null_entry = None
     best_null_score = None
+    best_score_no_ans = None
     for entry in nbest:
       total_scores.append(entry.start_log_prob + entry.end_log_prob)
       if not best_non_null_entry:
         best_non_null_entry = entry
-        best_null_score = -(entry.start_log_prob + entry.end_log_prob) # entry.cur_null_score
+        best_null_score = -(entry.start_log_prob + entry.end_log_prob - entry.cur_null_score[0]) # entry.cur_null_score
+        best_score_no_ans = entry.cur_null_score
 
     probs = _compute_softmax(total_scores)
 
@@ -839,17 +841,17 @@ def handle_prediction_by_qid(self,
       ans = best_non_null_entry.text if best_null_score < threshold else '*No answer*'
       truth = q['answer_text'] or '*No answer*'
       print('Q:', q['question'])
-      print('A:', ans, '(',best_null_score,')')
+      print('A:', ans, '(',best_null_score,')',  '[',best_score_no_ans,']', )
       print('Truth:', truth)
       print('')
-      score += compute_f1(truth, ans)
+    score += compute_f1(truth, ans)
 
     assert len(nbest_json) >= 1
     assert best_non_null_entry is not None
 
 
     all_predictions[qid] = best_non_null_entry.text
-    scores_diff_json[qid] = best_null_score
+    scores_diff_json[qid] = best_score_no_ans
   
   
   print('score: ', score, '/', len(all_predictions), '=', score / len(all_predictions))
