@@ -786,10 +786,6 @@ def handle_prediction_by_qid(self,
 
       final_text = r.text[char_s:char_e].strip() # this_paragraph_text[char_s:char_e]
 
-      if final_text == 'No answer':
-        continue
-        
-        
         
       if False:
         print(final_text, '>>', r.all_text_tokens[s:e+1])
@@ -823,7 +819,7 @@ def handle_prediction_by_qid(self,
       total_scores.append(entry.start_log_prob + entry.end_log_prob)
       if not best_non_null_entry:
         best_non_null_entry = entry
-        best_null_score = -(entry.start_log_prob + entry.end_log_prob - entry.cur_null_score) # entry.cur_null_score
+        best_null_score = -(entry.start_log_prob + entry.end_log_prob) # entry.cur_null_score
         best_score_no_ans = entry.cur_null_score
 
     probs = _compute_softmax(total_scores)
@@ -851,7 +847,7 @@ def handle_prediction_by_qid(self,
 
 
     all_predictions[qid] = best_non_null_entry.text
-    scores_diff_json[qid] = best_score_no_ans
+    scores_diff_json[qid] = best_null_score
   
   
   if debug:

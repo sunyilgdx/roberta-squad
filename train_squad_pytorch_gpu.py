@@ -701,7 +701,7 @@ for epoch in range(1, num_epochs + 1):
         loss_sum = 0
 
 
-torch.save({'model':roberta.state_dict(), 'args': roberta.args}, 'roberta_qa.pt')
+torch.save({'model':roberta.state_dict(), 'args': roberta.args}, 'roberta_qa_squad_24.pt')
 
 
 
