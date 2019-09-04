@@ -600,8 +600,9 @@ batch_size = effective_batch_size // update_freq
 from apex import amp
 from apex.parallel import DistributedDataParallel
 from apex.optimizers import FusedAdam, FP16_Optimizer
+
 if num_cores > 1:
-  roberta = DistributedDataParallel(roberta)
+  roberta = nn.DataParallel(roberta)
   
 print("Let's use", num_cores, "GPUs!")
 
