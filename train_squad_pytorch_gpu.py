@@ -661,24 +661,25 @@ for epoch in range(1, num_epochs + 1):
       
       if fp16:
         optimizer.backward(loss)
-      else
+      else:
         loss.backward()
       
-      loss_sum += loss                             
+      loss_sum += loss            
+       
       if update:
         loss_sum /= num_cores
         #torch.nn.utils.clip_grad_norm_(roberta.parameters(), 1.0)
         optimizer.step()
         optimizer.zero_grad()
-        accumulated = 0
-        loss_sum = 0
 
-      
       if x % log_steps == 0:
         t1 = time()
         rate = (x+1)/(t1-t0)
-        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate), (num_steps-x-1)/rate, t1-t0)
+        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-x-1)/rate, t1-t0))
                            
+      if update:                
+        accumulated = 0
+        loss_sum = 0
 
 
 torch.save(roberta.state_dict(), 'roberta_qa.pt')
