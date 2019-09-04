@@ -20,6 +20,8 @@ import random
 from tqdm import tqdm
 import os
 
+from apex import amp
+
 roberta_directory = './roberta.large'
 
 
@@ -587,16 +589,6 @@ num_cores = torch.cuda.device_count() # 8
 effective_batch_size = 32             # 8  bs per device
 update_freq = 1                       # 4  bs per device
 fp16 = True
-class args:
-  update_freq=update_freq
-  fp16_scale_window=128
-  distributed_world_size=1
-  fp16_init_scale=4
-  fp16_scale_tolerance=0
-  threshold_loss_scale=1
-  min_loss_scale=1e-4
-  
-  
 
 use_gpu = None
 
@@ -605,10 +597,10 @@ assert effective_batch_size % update_freq == 0
 batch_size = effective_batch_size // update_freq
 
 
-
+from apex import amp
+from apex.parallel import DistributedDataParallel
 if num_cores > 1:
-  roberta = nn.DataParallel(roberta)
-
+  roberta = DistributedDataParallel(roberta)
   
 print("Let's use", num_cores, "GPUs!")
 
@@ -632,11 +624,14 @@ params = roberta.params if num_cores <= 1 else roberta.module.params
   
 optimizer = Ranger(params, lr=5e-5)
 
-optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
+if num_cores > 1:
+  model, optimizer = amp.initialize(model, optimizer, opt_level="O3", keep_batchnorm_fp32=True, loss_scale="dynamic")
+
+if fp16:
+  optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
 
 
-
-data = list((from_records('qa_records_squad', batch_size, half=True)))
+data = list((from_records('qa_records_squad', batch_size, half=fp16)))
 print('batch_size:  ',batch_size)
 print('number_steps:',len(data) * num_epochs)
 
@@ -656,14 +651,19 @@ for epoch in range(1, num_epochs + 1):
                        end.to(device=device))
       if num_cores > 1:
         loss = loss.sum()
-      optimizer.backward(loss)
+      if fp16:
+        with amp.scale_loss(loss, optimizer) as scaled_loss:
+          scaled_loss.backward()
+      else:
+        
+        loss.backward()
       loss_sum += loss
       
       if x % log_steps == 0:
         t1 = time()
         rate = batch_size*accumulated/(t1-t0)
         t0 = time()
-        print('Loss={:.5f} Rate={:.2f}'.format(loss_sum.item()/accumulated,rate))
+        print('Loss={:.5f} Rate={:.2f}'.format(loss_sum.item()/num_cores,rate))
                                                         
       if update:
         loss_sum /= accumulated
