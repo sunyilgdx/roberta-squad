@@ -1,5 +1,7 @@
 from torch import nn
 import argparse
+from fairseq.data import Dictionary
+from fairseq.tasks.masked_lm import MaskedLMTask
 from fairseq.optim.fp16_optimizer import MemoryEfficientFP16Optimizer
 import torch
 from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT

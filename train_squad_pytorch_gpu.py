@@ -1,6 +1,7 @@
 from torch import nn
-
-from fairseq.models.roberta import RobertaModel
+import argparse
+from fairseq.data import Dictionary
+from fairseq.tasks.masked_lm import MaskedLMTask
 from fairseq.optim.fp16_optimizer import MemoryEfficientFP16Optimizer
 import torch
 from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT
@@ -411,10 +412,17 @@ class RobertaQA(torch.nn.Module):
                  end_n_top = 5,
                  use_ans_class = False):
         super(RobertaQA, self).__init__()
+		
         
-        roberta = RobertaModel.from_pretrained(roberta_path, checkpoint_file=checkpoint_file)
-        self.roberta = roberta.model
+        state = torch.load(os.path.join(roberta_path, checkpoint_file))
         
+        args = state['args']
+        self.dictionary = dictionary = Dictionary.load(os.path.join(roberta_path, 'dict.txt'))
+        model = MaskedLMTask(args, dictionary)
+        model.load_state_dict(state['model'], strict=True)
+        self.args = args
+        
+        self.roberta = model
         
         hs = roberta.args.encoder_embed_dim
         self.start_logits = PoolerStartLogits(hs)
@@ -586,7 +594,7 @@ max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
 effective_batch_size = 32             # 8  bs per device
 update_freq = 1                       # 4  bs per device
-fp16 = False
+fp16 = True
 class args:
   update_freq=update_freq
   fp16_scale_window=128
@@ -648,8 +656,10 @@ loss_sum = 0.
 
 from time import time
 t0 = time()
+X = 0
 for epoch in range(1, num_epochs + 1):
-    for x, (inp, p_mask, start, end) in enumerate(data):
+    for inp, p_mask, start, end in data:
+      X += 1
       accumulated += 1
       update = accumulated >= update_freq
       (loss, ) = roberta(inp.to(device=device), 
@@ -672,17 +682,17 @@ for epoch in range(1, num_epochs + 1):
         optimizer.step()
         optimizer.zero_grad()
 
-      if x % log_steps == 0:
+      if X % log_steps == 0:
         t1 = time()
-        rate = (x+1)/(t1-t0)
-        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-x-1)/rate, t1-t0))
+        rate = X/(t1-t0)
+        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0))
                            
       if update:                
         accumulated = 0
         loss_sum = 0
 
-
-torch.save(roberta.state_dict(), 'roberta_qa.pt')
+setattr(args, 'data', 
+torch.save({'model':roberta.state_dict(), 'args': roberta.args}, 'roberta_qa.pt')
 
 
 
