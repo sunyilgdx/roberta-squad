@@ -677,7 +677,7 @@ def handle_prediction_by_qid(self,
                              prediction_by_qid, 
                              n_best_size = 5,
                              max_answer_length = 48):
-
+  global prelim_predictions
   use_ans_class = self.use_ans_class
   all_predictions = {}
   scores_diff_json = {}
@@ -764,7 +764,7 @@ def handle_prediction_by_qid(self,
       if len(nbest) >= n_best_size:
           break
 
-      r = rs[pred.feature_index]
+      r = predictions[pred.feature_index][1]
       
       cur_null_score = pred.cur_null_score[0]
 
