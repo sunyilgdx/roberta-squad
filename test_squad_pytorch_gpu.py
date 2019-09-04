@@ -661,7 +661,6 @@ rs = rs[:100]
 batches = list(zip(from_records(records,batch_size, half=fp16), chunks(rs,batch_size)))
 
 prediction_by_qid = {}
-scores_diff_json = {}
 with torch.no_grad():
   for e, rs in tqdm(batches):
     inp, p_mask, start, end = e
@@ -680,7 +679,8 @@ def handle_prediction_by_qid(self,
                              max_answer_length = 48):
 
   use_ans_class = self.use_ans_class
-  all_predictions = []
+  all_predictions = {}
+  scores_diff_json = {}
 
   for qid, predictions in prediction_by_qid.items():
     q = orig_data[qid]
