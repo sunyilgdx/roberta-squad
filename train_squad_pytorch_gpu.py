@@ -594,7 +594,7 @@ class args:
   fp16_init_scale=4
   fp16_scale_tolerance=0
   threshold_loss_scale=1
-  min_loss_scale
+  min_loss_scale=1e-4
   
   
 
@@ -656,7 +656,7 @@ for epoch in range(1, num_epochs + 1):
                        end.to(device=device))
       if num_cores > 1:
         loss = loss.sum()
-      loss.backward()
+      optimizer.backward(loss)
       loss_sum += loss
       
       if x % log_steps == 0:
