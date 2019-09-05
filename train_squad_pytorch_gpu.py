@@ -435,7 +435,7 @@ class PoolerEndLogits(nn.Module):
     def __init__(self, hidden_size):
         super(PoolerEndLogits, self).__init__()
         self.dense_0 = nn.Linear(hidden_size * 2, hidden_size)
-        self.activation = nn.Mish()
+        self.activation = Mish()
         self.LayerNorm = nn.LayerNorm(hidden_size, eps=min_float)
         self.dense_1 = nn.Linear(hidden_size, 1)
 
@@ -474,7 +474,7 @@ class PoolerAnswerClass(nn.Module):
     def __init__(self, hidden_size):
         super(PoolerAnswerClass, self).__init__()
         self.dense_0 = nn.Linear(hidden_size * 2, hidden_size)
-        self.activation = nn.Mish()
+        self.activation = Mish()
         self.dense_1 = nn.Linear(hidden_size, 1, bias=False)
 
     def forward(self, hidden_states, start_states=None, start_positions=None, cls_index=None):
