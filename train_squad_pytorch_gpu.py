@@ -285,7 +285,7 @@ def from_records(records, batch_size = 48, half=False, shuffle=True):
         uid, inp, start, end, p_mask, answerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
         start = torch.LongTensor(start)
         end = torch.LongTensor(end)
-        answerable = torch.LongTensor(answerable)
+        answerable = float(answerable)
         inp = pad(inp,dtype=np.long, torch_tensor=torch.LongTensor)
         p_mask = pad(p_mask,dtype=np.float32, torch_tensor=float)
 
