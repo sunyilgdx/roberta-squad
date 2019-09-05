@@ -556,7 +556,7 @@ class RobertaQA(torch.nn.Module):
                  use_ans_class = False,
                  strict = False):
         super(RobertaQA, self).__init__()
-		
+        
         
         state = torch.load(os.path.join(roberta_path, checkpoint_file))
         
@@ -692,7 +692,7 @@ class RobertaQAEmbed(torch.nn.Module):
                  checkpoint_file='model.pt',
                  strict = False):
         super(RobertaQA, self).__init__()
-		
+        
         
         state = torch.load(os.path.join(roberta_path, checkpoint_file))
         
@@ -741,7 +741,7 @@ class RobertaQAEmbed(torch.nn.Module):
         
         if q and a:
           assert q.shape[0] == a.shape[0]
-		  q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0)).mean(1).split(q.size(0))
+          q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0)).mean(1).split(q.size(0))
         elif q:
           q_hs = self.extract_features(q).mean(1)  # [bs, hs]
         elif a:
@@ -754,24 +754,24 @@ class RobertaQAEmbed(torch.nn.Module):
         outputs = () 
 
         if return_loss:
-		    if not (q and a):
-			  raise Exception('Cannot calculate loss without both q and a')
+            if not (q and a):
+              raise Exception('Cannot calculate loss without both q and a')
             q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
             a_embed_norm = a_embed / a_embed.norm(dim=1)[:,None]
             loss = -(torch.eye(q_hs.shape[0]) * log_softmax(torch.mm(q_embed_norm,a_embed_norm.t()) )).sum()
             outputs = (total_loss,)
 
         else:
-		    if q:
-			  if normalize:
-			    q_embed = q_embed / q_embed.norm(dim=1)[:,None]
+            if q:
+              if normalize:
+                q_embed = q_embed / q_embed.norm(dim=1)[:,None]
               outputs = outputs + (q_embed,)
-			  
-		    if a:
-			  if normalize:
-			    a_embed = a_embed / a_embed.norm(dim=1)[:,None]
+              
+            if a:
+              if normalize:
+                a_embed = a_embed / a_embed.norm(dim=1)[:,None]
               outputs = outputs + (a_embed,)
-			  
+              
         # return start_top_log_probs, start_top_index, end_top_log_probs, end_top_index, cls_logits
         # or (if labels are provided) (total_loss,)
         return outputs
