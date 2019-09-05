@@ -524,31 +524,27 @@ class RobertaQA(torch.nn.Module):
         # or (if labels are provided) (total_loss,)
         return outputs
 
-    @property
-    def params(self, lr=3e-5, lr_rate_decay=0.75):
-        lr_factors = []
-        lr_rate_decay = 0.75
-        lr = 5e-5
-        prefix = 'roberta.decoder.sentence_encoder.layers.'
 
-        num_layers = self.roberta.args.encoder_layers
-        for k, v in self.state_dict().items():
-            factor = 1
+def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.9):
+  lr_factors = []
+  prefix = 'module.roberta.decoder.sentence_encoder.layers.'
 
-            if 'sentence_encoder.layers' in k:
-                layer = int(k[len(prefix):].split('.')[0])
-                factor = lr_rate_decay**(num_layers-layer)
+  for k, v in roberta.state_dict().items():
+      factor = 1
+      if 'sentence_encoder.layers' in k:
+          layer = int(k[len(prefix):].split('.')[0])
+          factor = lr_rate_decay**(num_layers-layer)
 
-            elif 'embed_tokens.weight' in k or 'embed_positions' in k:
-                layer = 0
-                factor = lr_rate_decay**(num_layers-layer)
+      elif 'embed_tokens.weight' in k or 'embed_positions' in k:
+          layer = 0
+          factor = lr_rate_decay**(num_layers-layer)
 
-            lr_factors.append({
-                'params': v,
-                'lr': lr * factor,
-            })
-
-        return lr_factors
+      lr_factors.append({
+          'params': v,
+          'lr': lr * factor,
+      })
+      
+      
       
       
 # Eval Utilities
@@ -645,7 +641,7 @@ if fp16:
   min_float = MIN_FLOAT16
   roberta.half()
   
-params = roberta.parameters()
+params = get_decayed_param_groups(roberta, roberta_single.args.encoder_layers, lr=3e-5, lr_rate_decay=0.908517) # roberta.parameters()
   
 optimizer = Ranger(params, lr=3e-5)
 
@@ -687,7 +683,7 @@ for epoch in range(1, num_epochs + 1):
        
       if update:
         loss_sum /= num_cores
-        #torch.nn.utils.clip_grad_norm_(roberta.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(params, 1.0)
         optimizer.step()
         optimizer.zero_grad()
 
