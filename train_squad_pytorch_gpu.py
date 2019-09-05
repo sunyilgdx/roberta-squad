@@ -258,7 +258,7 @@ def pad(list_of_tokens,
     return k if torch_tensor is None else torch_tensor(k)
 
   
-def from_records(records, batch_size = 48, half=False):
+def from_records(records, batch_size = 48, half=False, shuffle=True):
     if half:
       float = torch.HalfTensor
     else:
@@ -277,7 +277,9 @@ def from_records(records, batch_size = 48, half=False):
                     break
       records = from_file(records)
 
-    
+    if shuffle:
+      records = list(records)
+      random.shuffle(records)
     for record_samples in chunks(records,batch_size):
         uid, inp, start, end, p_mask = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
         start = torch.LongTensor(start)
@@ -780,7 +782,6 @@ from time import time
 t0 = time()
 X = 0
 for epoch in range(1, num_epochs + 1):
-    random.shuffle(data)
     for inp, p_mask, start, end in data:
       X += 1
       accumulated += 1
@@ -801,7 +802,7 @@ for epoch in range(1, num_epochs + 1):
        
       if update:
         loss_sum /= num_cores
-        #optimizer.clip_grad_norm(1.0)
+        optimizer.clip_grad_norm(1.0)
         optimizer.step()
         scheduler.step()
         optimizer.zero_grad()
