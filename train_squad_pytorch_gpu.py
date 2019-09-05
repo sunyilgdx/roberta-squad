@@ -435,7 +435,7 @@ class PoolerEndLogits(nn.Module):
     def __init__(self, hidden_size):
         super(PoolerEndLogits, self).__init__()
         self.dense_0 = nn.Linear(hidden_size * 2, hidden_size)
-        self.activation = Mish()
+        self.activation = nn.Tanh()
         self.LayerNorm = nn.LayerNorm(hidden_size, eps=min_float)
         self.dense_1 = nn.Linear(hidden_size, 1)
 
@@ -474,7 +474,7 @@ class PoolerAnswerClass(nn.Module):
     def __init__(self, hidden_size):
         super(PoolerAnswerClass, self).__init__()
         self.dense_0 = nn.Linear(hidden_size * 2, hidden_size)
-        self.activation = Mish()
+        self.activation = nn.Tanh()
         self.dense_1 = nn.Linear(hidden_size, 1, bias=False)
 
     def forward(self, hidden_states, start_states=None, start_positions=None, cls_index=None):
@@ -702,7 +702,7 @@ roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='mode
   
 
 
-log_steps = 100
+log_steps = 50
 num_epochs = 2
 max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
@@ -710,7 +710,7 @@ effective_batch_size = 24             # 8  bs per device
 update_freq = 1                       # 4  bs per device
 lr = 5e-5
 lr_flat_ratio = 0.5
-lr_rate_decay=0.75
+lr_rate_decay=1
 
 fp16 = True
 class args:
@@ -754,7 +754,7 @@ if fp16:
   min_float = MIN_FLOAT16
   roberta.half()
   
-params = get_decayed_param_groups(roberta, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay) 
+params = get_decayed_param_groups(roberta, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay)  if lr_rate_decay < 1 else roberta.parameters()
   
 optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0)
 
@@ -801,7 +801,7 @@ for epoch in range(1, num_epochs + 1):
        
       if update:
         loss_sum /= num_cores
-        optimizer.clip_grad_norm(1.0)
+        #optimizer.clip_grad_norm(1.0)
         optimizer.step()
         scheduler.step()
         optimizer.zero_grad()
@@ -809,7 +809,7 @@ for epoch in range(1, num_epochs + 1):
       if (X-1) % log_steps == 0:
         t1 = time()
         rate = X/(t1-t0)
-        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0))
+        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}, learning-rate={:.2f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0, optimizer.wrapped_optimizer.param_groups[-1]['lr']))
                            
       if update:                
         accumulated = 0
