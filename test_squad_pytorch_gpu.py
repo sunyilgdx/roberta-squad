@@ -676,7 +676,7 @@ def _compute_softmax(scores):
 
 from time import time
 
-roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa_squad_24.pt', strict=True)
+roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa_squad_24_v2.pt', strict=True)
 
 
 
@@ -744,7 +744,7 @@ records = records
 rs = rs
 
 
-batches = list(zip(from_records(records,batch_size, half=fp16), chunks(rs,batch_size)))
+batches = list(zip(from_records(records,batch_size, half=fp16, shuffle=False), chunks(rs,batch_size)))
 
 prediction_by_qid = {}
 with torch.no_grad():
