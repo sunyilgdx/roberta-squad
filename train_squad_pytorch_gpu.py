@@ -591,7 +591,7 @@ def _compute_softmax(scores):
 
 from time import time
 
-roberta = RobertaQA(roberta_path=roberta_directory, checkpoint_file='model_new.pt')
+roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='model_new.pt')
 
 
   
@@ -624,8 +624,8 @@ batch_size = effective_batch_size // update_freq
 
 
 if num_cores > 1:
-  roberta = nn.DataParallel(roberta)
-
+  roberta = nn.DataParallel(roberta_single)
+{'model':roberta.state_dict(), 'args': roberta_single.args}
   
 print("Let's use", num_cores, "GPUs!")
 
@@ -701,7 +701,7 @@ for epoch in range(1, num_epochs + 1):
         loss_sum = 0
 
 
-torch.save({'model':roberta.state_dict(), 'args': roberta.args}, 'roberta_qa_squad_24.pt')
+torch.save({'model':roberta.state_dict(), 'args': roberta_single.args}, 'roberta_qa_squad_24.pt')
 
 
 
