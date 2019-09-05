@@ -619,7 +619,7 @@ class RobertaQA(torch.nn.Module):
 
         if start_positions is not None and end_positions is not None:
             # If we are on multi-GPU, let's remove the dimension added by batch splitting
-            for x in (start_positions, end_positions, is_impossible):
+            for x in (start_positions, end_positions, answerable):
                 if x is not None and x.dim() > 1:
                     x.squeeze_(-1)
 
