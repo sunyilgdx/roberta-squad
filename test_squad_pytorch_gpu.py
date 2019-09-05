@@ -521,9 +521,10 @@ class RobertaQA(torch.nn.Module):
                  checkpoint_file='model.pt',
                  start_n_top = 5,
                  end_n_top = 5,
-                 use_ans_class = False):
+                 use_ans_class = False,
+                 strict = False):
         super(RobertaQA, self).__init__()
-		
+        
         
         state = torch.load(os.path.join(roberta_path, checkpoint_file))
         
@@ -551,7 +552,7 @@ class RobertaQA(torch.nn.Module):
         self.use_ans_class = use_ans_class
         
         print('loading from checkpoint...')
-        self.load_state_dict(state['model'], strict=False)
+        self.load_state_dict(state['model'], strict=strict)
 
     def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
         if tokens.dim() == 1:
@@ -675,7 +676,7 @@ def _compute_softmax(scores):
 
 from time import time
 
-roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa_squad_24.pt')
+roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa_squad_24.pt', strict=True)
 
 
 
