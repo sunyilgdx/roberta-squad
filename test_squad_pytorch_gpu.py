@@ -10,6 +10,7 @@ import numpy as np
 from torch.nn import functional as F
 from torch.nn import CrossEntropyLoss
 from ranger import Ranger
+from ranger import Adam
 import json
 from tokenizer.validate import validate
 from copy import deepcopy
@@ -66,17 +67,17 @@ def char_anchors_to_tok_pos(r):
     return a, b
 
 def read(dat):
-    uid, inp, start, end, p_mask = marshal.loads(dat)
+    uid, inp, start, end, p_mask, answerable = marshal.loads(dat)
     inp = np.frombuffer(inp, dtype=np.uint16).astype(np.int32)
     p_mask = np.frombuffer(p_mask, dtype=np.bool).astype(np.float32)
-    return uid, inp, start, end, p_mask
-            
+    return uid, inp, start, end, p_mask, answerable
+
 def fread(f):
-    uid, inp, start, end, p_mask = marshal.load(f)
+    uid, inp, start, end, p_mask, answerable = marshal.load(f)
     inp = np.frombuffer(inp, dtype=np.uint16).astype(np.int32)
     p_mask = np.frombuffer(p_mask, dtype=np.bool).astype(np.float32)
-    return uid, inp, start, end, p_mask
-  
+    return uid, inp, start, end, p_mask, answerable
+            
 def gen(paths):
 
     for i,context,qas in data_from_path(paths):
@@ -141,7 +142,8 @@ def work(ss, debug=False):
                 np.array(inp,dtype=np.uint16).tobytes(),
                 start_position,
                 end_position,
-                np.array(p_mask,dtype=np.bool).tobytes()
+                np.array(p_mask,dtype=np.bool).tobytes(),
+                int(not no_ans)
                 )
             )
             
@@ -207,7 +209,7 @@ def generate_tfrecord(data_dir,
             c += 1
             if c % 2500 == 0:
                 t1 = time()
-                uid, inp, start, end, p_mask = read(record)
+                uid, inp, start, end, p_mask, answerable = read(record)
                 # print(uid, tk.convert_ids_to_tokens(inp) , start, end, p_mask)
                 print('%d features (%d no ans) extracted (time: %.2f s)'%(c, num_no_ans, t1-t0))
 
@@ -281,13 +283,14 @@ def from_records(records, batch_size = 48, half=False, shuffle=True):
       records = list(records)
       random.shuffle(records)
     for record_samples in chunks(records,batch_size):
-        uid, inp, start, end, p_mask = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
+        uid, inp, start, end, p_mask, answerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
         start = torch.LongTensor(start)
         end = torch.LongTensor(end)
+        answerable = float(answerable)
         inp = pad(inp,dtype=np.long, torch_tensor=torch.LongTensor)
         p_mask = pad(p_mask,dtype=np.float32, torch_tensor=float)
 
-        yield inp, p_mask, start, end
+        yield inp, p_mask, start, end, answerable
 
 
 # Train Utilities
@@ -391,6 +394,18 @@ class DelayedCosineAnnealingLR(fairseq_LRScheduler):
                 for base_lr in self.base_lrs] if self.last_epoch > self.delayed_steps else \
                [base_lr for base_lr in self.base_lrs]
 
+            
+class LinearAnnealingLRWithWarmUp(fairseq_LRScheduler):
+
+    def __init__(self, optimizer, T_max, warmup_steps=0, last_epoch=-1):
+        self.T_max = T_max - warmup_steps
+        self.warmup_steps = warmup_steps
+        super(LinearAnnealingLRWithWarmUp, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        return [base_lr * (1 - (self.last_epoch - self.warmup_steps) / self.T_max)
+                for base_lr in self.base_lrs] if self.last_epoch > self.warmup_steps else \
+               [base_lr * (self.last_epoch/self.warmup_steps) for base_lr in self.base_lrs]
 
 # Model Utilities
 
@@ -475,11 +490,12 @@ class PoolerAnswerClass(nn.Module):
     """ Compute SQuAD 2.0 answer class from classification and start tokens hidden states. """
     def __init__(self, hidden_size):
         super(PoolerAnswerClass, self).__init__()
-        self.dense_0 = nn.Linear(hidden_size * 2, hidden_size)
+        self.dense_0 = nn.Linear(hidden_size, hidden_size)
         self.activation = nn.Tanh()
+        #self.dropout = nn.Dropout(p=dropout)
         self.dense_1 = nn.Linear(hidden_size, 1, bias=False)
 
-    def forward(self, hidden_states, start_states=None, start_positions=None, cls_index=None):
+    def forward(self, hidden_states, cls_index=None):
         """
         Args:
             One of ``start_states``, ``start_positions`` should be not None.
@@ -496,6 +512,23 @@ class PoolerAnswerClass(nn.Module):
                 no dependency on end_feature so that we can obtain one single `cls_logits`
                 for each sample
         """
+
+        if cls_index is not None:
+            cls_index = cls_index[:, None, None].expand(-1, -1, hsz) # shape (bsz, 1, hsz)
+            cls_token_state = hidden_states.gather(-2, cls_index).squeeze(-2) # shape (bsz, hsz)
+        else:
+            cls_token_state = hidden_states[:, 0, :] # shape (bsz, hsz)
+
+
+        x = self.dense_0(cls_token_state)
+        x = self.activation(x)
+        x = self.dense_1(x).squeeze(-1)
+
+
+        return x
+
+
+        '''
         hsz = hidden_states.shape[-1]
         assert start_states is not None or start_positions is not None, "One of start_states, start_positions should be not None"
         if start_positions is not None:
@@ -513,7 +546,7 @@ class PoolerAnswerClass(nn.Module):
         x = self.dense_1(x).squeeze(-1)
 
         return x
-
+        ''' 
 
 class RobertaQA(torch.nn.Module):
     def __init__(self, 
@@ -524,7 +557,6 @@ class RobertaQA(torch.nn.Module):
                  use_ans_class = False,
                  strict = False):
         super(RobertaQA, self).__init__()
-        
         
         state = torch.load(os.path.join(roberta_path, checkpoint_file))
         
@@ -552,6 +584,10 @@ class RobertaQA(torch.nn.Module):
         self.use_ans_class = use_ans_class
         
         print('loading from checkpoint...')
+        print('use_ans_class:', use_ans_class)
+        print('roberta_path:', roberta_path)
+        print('checkpoint_file:', checkpoint_file)
+        print('strict:', strict)
         self.load_state_dict(state['model'], strict=strict)
 
     def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
@@ -573,7 +609,7 @@ class RobertaQA(torch.nn.Module):
         else:
             return features  # just the last layer's features
 
-    def forward(self, x, p_mask, start_positions=None, end_positions=None, cls_index=None, is_impossible=None): 
+    def forward(self, x, p_mask, start_positions=None, end_positions=None, answerable=None, cls_index=None): 
         use_ans_class = self.use_ans_class
         hidden_states = self.extract_features(x)  # [bs, seq_len, hs]
         
@@ -583,7 +619,7 @@ class RobertaQA(torch.nn.Module):
 
         if start_positions is not None and end_positions is not None:
             # If we are on multi-GPU, let's remove the dimension added by batch splitting
-            for x in (start_positions, end_positions, is_impossible):
+            for x in (start_positions, end_positions, answerable):
                 if x is not None and x.dim() > 1:
                     x.squeeze_(-1)
 
@@ -595,11 +631,12 @@ class RobertaQA(torch.nn.Module):
             end_loss = loss_fct(end_logits, end_positions)
             total_loss = (start_loss + end_loss) / 2
 
-            if use_ans_class and is_impossible is not None:
+            if use_ans_class:
+                assert answerable is not None
                 # Predict answerability from the representation of CLS and START
-                cls_logits = self.answer_class(hidden_states, start_positions=start_positions, cls_index=cls_index)
+                cls_logits = self.answer_class(hidden_states, cls_index=cls_index)
                 loss_fct_cls = nn.BCEWithLogitsLoss()
-                cls_loss = loss_fct_cls(cls_logits, is_impossible)
+                cls_loss = loss_fct_cls(cls_logits, answerable)
 
                 # note(zhiliny): by default multiply the loss by 0.5 so that the scale is comparable to start_loss and end_loss
                 total_loss += cls_loss * 0.5
@@ -625,9 +662,9 @@ class RobertaQA(torch.nn.Module):
             end_top_log_probs = end_top_log_probs.view(-1, self.start_n_top * self.end_n_top)
             end_top_index = end_top_index.view(-1, self.start_n_top * self.end_n_top)
 
-            start_states = torch.einsum("blh,bl->bh", hidden_states, start_log_probs)  # get the representation of START as weighted sum of hidden states
+            #start_states = torch.einsum("blh,bl->bh", hidden_states, start_log_probs)  # get the representation of START as weighted sum of hidden states
             if use_ans_class:
-              cls_logits = self.answer_class(hidden_states, start_states=start_states, cls_index=cls_index)  # Shape (batch size,): one single `cls_logits` for each sample
+              cls_logits = self.answer_class(hidden_states, cls_index=cls_index)  # Shape (batch size,): one single `cls_logits` for each sample
               outputs = (start_top_log_probs, start_top_index, end_top_log_probs, end_top_index, cls_logits) + outputs
             else:
               outputs = (start_top_log_probs, start_top_index, end_top_log_probs, end_top_index) + outputs
@@ -635,6 +672,130 @@ class RobertaQA(torch.nn.Module):
         # return start_top_log_probs, start_top_index, end_top_log_probs, end_top_index, cls_logits
         # or (if labels are provided) (total_loss,)
         return outputs
+
+
+class FnnLayer(nn.Module):
+    """ Compute SQuAD start_logits from sequence hidden states. """
+    def __init__(self, hidden_size, dropout=0.2):
+        super(FnnLayer, self).__init__()
+        self.dense = nn.Linear(hidden_size, hidden_size)
+        self.activation = Mish()
+        self.dropout = nn.Dropout(p=dropout)
+        
+    def forward(self, hidden_states):
+
+        return self.dropout(self.activation(self.dense(hidden_states).squeeze(-1))) + hidden_states
+
+class RobertaQAEmbed(torch.nn.Module):
+    def __init__(self, 
+                 roberta_path='roberta.large',
+                 checkpoint_file='model.pt',
+                 strict = False):
+        super(RobertaQA, self).__init__()
+        
+        
+        state = torch.load(os.path.join(roberta_path, checkpoint_file))
+        
+        args = state['args']
+        roberta_large_architecture(args)
+
+        if not hasattr(args, 'max_positions'):
+            args.max_positions = args.tokens_per_sample
+
+        self.dictionary = dictionary = Dictionary.load(os.path.join(roberta_path, 'dict.txt'))
+        dictionary.add_symbol('<mask>')
+
+        model = RobertaModel(args, RobertaEncoder(args, dictionary))
+        self.args = args
+        
+        self.roberta = model
+        
+        hs = args.encoder_embed_dim
+        self.log_softmax = torch.nn.LogSoftmax(dim=1)
+        self.q_fnn_layer = FnnLayer(hs)
+        self.a_fnn_layer = FnnLayer(hs)
+        
+        print('loading from checkpoint...')
+        self.load_state_dict(state['model'], strict=strict)
+
+    def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
+        if tokens.dim() == 1:
+            tokens = tokens.unsqueeze(0)
+        if tokens.size(-1) > self.roberta.max_positions():
+            raise ValueError('tokens exceeds maximum length: {} > {}'.format(
+                tokens.size(-1), self.roberta.max_positions()
+            ))
+        features, extra = self.roberta(
+            tokens,
+            features_only=True,
+            return_all_hiddens=return_all_hiddens,
+        )
+        if return_all_hiddens:
+            # convert from T x B x C -> B x T x C
+            inner_states = extra['inner_states']
+            return [inner_state.transpose(0, 1) for inner_state in inner_states]
+        else:
+            return features  # just the last layer's features
+
+    def forward(self, q=None, a=None, normalize=False, return_loss=False): 
+        
+        if q and a:
+          assert q.shape[0] == a.shape[0]
+          q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0)).mean(1).split(q.size(0))
+        elif q:
+          q_hs = self.extract_features(q).mean(1)  # [bs, hs]
+        elif a:
+          a_hs = self.extract_features(a).mean(1)  # [bs, hs]
+        if q:
+          q_embed = self.q_fnn_layer(q_hs)
+        if a:
+          a_embed = self.a_fnn_layer(q_hs)
+
+        outputs = () 
+
+        if return_loss:
+            if not (q and a):
+              raise Exception('Cannot calculate loss without both q and a')
+            q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
+            a_embed_norm = a_embed / a_embed.norm(dim=1)[:,None]
+            loss = -(torch.eye(q_hs.shape[0]) * log_softmax(torch.mm(q_embed_norm,a_embed_norm.t()) )).sum()
+            outputs = (total_loss,)
+
+        else:
+            if q:
+              if normalize:
+                q_embed = q_embed / q_embed.norm(dim=1)[:,None]
+              outputs = outputs + (q_embed,)
+              
+            if a:
+              if normalize:
+                a_embed = a_embed / a_embed.norm(dim=1)[:,None]
+              outputs = outputs + (a_embed,)
+              
+        # return start_top_log_probs, start_top_index, end_top_log_probs, end_top_index, cls_logits
+        # or (if labels are provided) (total_loss,)
+        return outputs
+
+
+def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.908517):
+  lr_factors = []
+  prefix = 'module.roberta.decoder.sentence_encoder.layers.'
+
+  for k, v in roberta.named_parameters():
+      factor = 1
+      if 'sentence_encoder.layers' in k:
+          layer = int(k[len(prefix):].split('.')[0])
+          factor = lr_rate_decay**(num_layers-layer)
+
+      elif 'embed_tokens.weight' in k or 'embed_positions' in k:
+          layer = 0
+          factor = lr_rate_decay**(num_layers-layer)
+
+      lr_factors.append({
+          'params': v,
+          'lr': lr * factor,
+      })
+  return lr_factors
 
 # Eval Utilities
 
@@ -676,7 +837,7 @@ def _compute_softmax(scores):
 
 from time import time
 
-roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa_squad_24_v2.pt', strict=True)
+roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa_squad_24.pt', strict=True)
 
 
 
@@ -790,10 +951,13 @@ def handle_prediction_by_qid(self,
       sub_prelim_predictions = []
 
       if use_ans_class:
-        raise
-
+        start_top_log_probs, start_top_index, end_top_log_probs, end_top_index, cls_logits = result
+        cur_null_score = -cls_logits.tolist()
+        
       else:
         start_top_log_probs, start_top_index, end_top_log_probs, end_top_index = result
+        
+      if True:
         start_top_log_probs = start_top_log_probs.tolist()
         start_top_index = start_top_index.tolist()
         end_top_log_probs = end_top_log_probs.tolist()
@@ -828,10 +992,9 @@ def handle_prediction_by_qid(self,
               if length > max_answer_length:
                 continue
                 
-              logits_sum = start_index + end_index
                 
-              if start_index == no_ans_start and end_index == no_ans_start + 1 and cur_null_score < logits_sum:
-                cur_null_score = logits_sum
+              if start_index == no_ans_start and end_index == no_ans_start + 1:
+                continue
 
               sub_prelim_predictions.append(
                   _PrelimPrediction(
@@ -841,18 +1004,16 @@ def handle_prediction_by_qid(self,
                       start_log_prob=start_log_prob,
                       end_log_prob=end_log_prob,
                       this_paragraph_text=this_paragraph_text,
-                      cur_null_score=[0]
+                      cur_null_score=cur_null_score
                   ))
               
-      for e in sub_prelim_predictions:
-        e.cur_null_score[0] = cur_null_score
         
       prelim_predictions.extend(sub_prelim_predictions)
       ri += 1
 
     prelim_predictions = sorted(
         prelim_predictions,
-        key=lambda x: (x.start_log_prob + x.end_log_prob - x.cur_null_score[0]),
+        key=(lambda x: (x.start_log_prob + x.end_log_prob)) if use_ans_class else (lambda x: (x.start_log_prob + x.end_log_prob - x.cur_null_score)),
         reverse=True)
 
     seen_predictions = {}
@@ -863,7 +1024,7 @@ def handle_prediction_by_qid(self,
 
       r = predictions[pred.feature_index][1]
       
-      cur_null_score = pred.cur_null_score[0]
+      cur_null_score = pred.cur_null_score
 
       this_paragraph_text = pred.this_paragraph_text
 
@@ -909,7 +1070,7 @@ def handle_prediction_by_qid(self,
       total_scores.append(entry.start_log_prob + entry.end_log_prob)
       if not best_non_null_entry:
         best_non_null_entry = entry
-        best_null_score = -(entry.start_log_prob + entry.end_log_prob) # entry.cur_null_score
+        best_null_score = entry.cur_null_score if use_ans_class else -(entry.start_log_prob + entry.end_log_prob)
         best_score_no_ans = entry.cur_null_score
 
     probs = _compute_softmax(total_scores)

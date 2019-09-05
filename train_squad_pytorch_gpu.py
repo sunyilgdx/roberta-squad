@@ -902,8 +902,8 @@ params = get_decayed_param_groups(roberta, roberta_single.args.encoder_layers, l
   
   
   
-#optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0.01)
-optimizer = Adam(params, lr=lr, betas=(0.9,0.98), weight_decay=0.01, eps=1e-6)
+optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0.01, eps=1e-6)
+#optimizer = Adam(params, lr=lr, betas=(0.9,0.98), weight_decay=0.01, eps=1e-6)
 
 if fp16:
   optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
@@ -929,7 +929,6 @@ t0 = time()
 X = 0
 for epoch in range(1, num_epochs + 1):
     for inp, p_mask, start, end, answerable in data:
-      X += 1
       accumulated += 1
       update = accumulated >= update_freq
       (loss, ) = roberta(inp.to(device=device), 
@@ -948,6 +947,7 @@ for epoch in range(1, num_epochs + 1):
       loss_sum += loss            
        
       if update:
+        X += 1
         loss_sum /= num_cores
         #optimizer.clip_grad_norm(1.0)
         optimizer.step()
@@ -964,7 +964,7 @@ for epoch in range(1, num_epochs + 1):
         loss_sum = 0
 
 
-torch.save({'model':roberta_single.state_dict(), 'args': roberta_single.args}, 'roberta.large/roberta_qa_squad_24.pt')
+torch.save({'model':roberta_single.state_dict(), 'args': roberta_single.args}, 'roberta.large/roberta_qa_squad_24_ranger.pt')
 
 
 
