@@ -288,6 +288,107 @@ def from_records(records, batch_size = 48, half=False):
         yield inp, p_mask, start, end
 
 
+# Train Utilities
+
+
+import math
+from functools import wraps
+import warnings
+
+
+class fairseq_LRScheduler(object):
+    def __init__(self, optimizer, last_epoch=-1):
+        self.optimizer = optimizer
+        if last_epoch == -1:
+            for group in optimizer.wrapped_optimizer.param_groups:
+                group.setdefault('initial_lr', group['lr'])
+            last_epoch = 0
+        else:
+            for i, group in enumerate(optimizer.wrapped_optimizer.param_groups):
+                if 'initial_lr' not in group:
+                    raise KeyError("param 'initial_lr' is not specified "
+                                   "in param_groups[{}] when resuming an optimizer".format(i))
+        self.base_lrs = list(map(lambda group: group['initial_lr'], optimizer.wrapped_optimizer.param_groups))
+        self.last_epoch = last_epoch
+
+        # Following https://github.com/pytorch/pytorch/issues/20124
+        # We would like to ensure that `lr_scheduler.step()` is called after
+        # `optimizer.step()`
+        def with_counter(func, opt):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                opt._step_count += 1
+                return func(*args, **kwargs)
+            wrapper._with_counter = True
+            return wrapper
+
+        self.optimizer.step = with_counter(self.optimizer.step, self.optimizer)
+        self.optimizer._step_count = 0
+        self._step_count = 0
+        self.step(last_epoch)
+
+    def state_dict(self):
+        """Returns the state of the scheduler as a :class:`dict`.
+
+        It contains an entry for every variable in self.__dict__ which
+        is not the optimizer.
+        """
+        return {key: value for key, value in self.__dict__.items() if key != 'optimizer'}
+
+    def load_state_dict(self, state_dict):
+        """Loads the schedulers state.
+
+        Arguments:
+            state_dict (dict): scheduler state. Should be an object returned
+                from a call to :meth:`state_dict`.
+        """
+        self.__dict__.update(state_dict)
+
+    def get_lr(self):
+        raise NotImplementedError
+
+    def step(self, epoch=None):
+        # Raise a warning if old pattern is detected
+        # https://github.com/pytorch/pytorch/issues/20124
+        if self._step_count == 1:
+            if not hasattr(self.optimizer.step, "_with_counter"):
+                warnings.warn("Seems like `optimizer.step()` has been overridden after learning rate scheduler "
+                              "initialization. Please, make sure to call `optimizer.step()` before "
+                              "`lr_scheduler.step()`. See more details at "
+                              "https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate", UserWarning)
+
+            # Just check if there were two first lr_scheduler.step() calls before optimizer.step()
+            elif self.optimizer._step_count < 1:
+                warnings.warn("Detected call of `lr_scheduler.step()` before `optimizer.step()`. "
+                              "In PyTorch 1.1.0 and later, you should call them in the opposite order: "
+                              "`optimizer.step()` before `lr_scheduler.step()`.  Failure to do this "
+                              "will result in PyTorch skipping the first value of the learning rate schedule."
+                              "See more details at "
+                              "https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate", UserWarning)
+        self._step_count += 1
+
+        if epoch is None:
+            epoch = self.last_epoch + 1
+        self.last_epoch = epoch
+        for param_group, lr in zip(self.optimizer.wrapped_optimizer.param_groups, self.get_lr()):
+            param_group['lr'] = lr
+            
+            
+            
+class DelayedCosineAnnealingLR(fairseq_LRScheduler):
+
+    def __init__(self, optimizer, T_max, delayed_steps=0, eta_min=0, last_epoch=-1):
+        self.T_max = T_max - delayed_steps
+        self.eta_min = eta_min
+        self.delayed_steps = delayed_steps
+        super(DelayedCosineAnnealingLR, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        return [self.eta_min + (base_lr - self.eta_min) *
+                (1 + math.cos(math.pi * (self.last_epoch - self.delayed_steps) / self.T_max)) / 2
+                for base_lr in self.base_lrs] if self.last_epoch > self.delayed_steps else \
+               [base_lr for base_lr in self.base_lrs]
+
 
 # Model Utilities
 
@@ -299,6 +400,14 @@ max_float = MAX_FLOAT16
 min_float = MIN_FLOAT16
 max_float = MAX_FLOAT32
 min_float = MIN_FLOAT32
+
+class Mish(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        #inlining this saves 1 second per epoch (V100 GPU) vs having a temp x and then returning x(!)
+        return x *( torch.tanh(F.softplus(x)))
 
 class PoolerStartLogits(nn.Module):
     """ Compute SQuAD start_logits from sequence hidden states. """
@@ -326,7 +435,7 @@ class PoolerEndLogits(nn.Module):
     def __init__(self, hidden_size):
         super(PoolerEndLogits, self).__init__()
         self.dense_0 = nn.Linear(hidden_size * 2, hidden_size)
-        self.activation = nn.Tanh()
+        self.activation = nn.Mish()
         self.LayerNorm = nn.LayerNorm(hidden_size, eps=min_float)
         self.dense_1 = nn.Linear(hidden_size, 1)
 
@@ -365,7 +474,7 @@ class PoolerAnswerClass(nn.Module):
     def __init__(self, hidden_size):
         super(PoolerAnswerClass, self).__init__()
         self.dense_0 = nn.Linear(hidden_size * 2, hidden_size)
-        self.activation = nn.Tanh()
+        self.activation = nn.Mish()
         self.dense_1 = nn.Linear(hidden_size, 1, bias=False)
 
     def forward(self, hidden_states, start_states=None, start_positions=None, cls_index=None):
@@ -525,11 +634,11 @@ class RobertaQA(torch.nn.Module):
         return outputs
 
 
-def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.9):
+def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.75):
   lr_factors = []
   prefix = 'module.roberta.decoder.sentence_encoder.layers.'
 
-  for k, v in roberta.state_dict().items():
+  for k, v in roberta.named_parameters():
       factor = 1
       if 'sentence_encoder.layers' in k:
           layer = int(k[len(prefix):].split('.')[0])
@@ -597,8 +706,12 @@ log_steps = 100
 num_epochs = 2
 max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
-effective_batch_size = 24             # 8  bs per device
+effective_batch_size = 32             # 8  bs per device
 update_freq = 1                       # 4  bs per device
+lr = 5e-5
+lr_flat_ratio = 0.5
+lr_rate_decay=0.75
+
 fp16 = True
 class args:
   update_freq=update_freq
@@ -641,15 +754,14 @@ if fp16:
   min_float = MIN_FLOAT16
   roberta.half()
   
-params = get_decayed_param_groups(roberta, roberta_single.args.encoder_layers, lr=3e-5, lr_rate_decay=0.908517) # roberta.parameters()
+params = get_decayed_param_groups(roberta, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay) 
   
-optimizer = Ranger(params, lr=3e-5)
+optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0)
 
 if fp16:
   optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
 
-
-
+import random
 data = list((from_records('qa_records_squad', batch_size, half=fp16)))
 num_steps = len(data) * num_epochs
 print('batch_size:  ',batch_size)
@@ -659,10 +771,16 @@ accumulated = 0
 loss_sum = 0.
 
 
+scheduler = DelayedCosineAnnealingLR(optimizer, num_steps, delayed_steps=num_steps*lr_flat_ratio)
+
+
+
+
 from time import time
 t0 = time()
 X = 0
 for epoch in range(1, num_epochs + 1):
+    random.shuffle(data)
     for inp, p_mask, start, end in data:
       X += 1
       accumulated += 1
@@ -684,7 +802,7 @@ for epoch in range(1, num_epochs + 1):
       if update:
         loss_sum /= num_cores
         optimizer.clip_grad_norm(1.0)
-        optimizer.step()
+        scheduler.step()
         optimizer.zero_grad()
 
       if X % log_steps == 0:

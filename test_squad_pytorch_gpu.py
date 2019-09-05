@@ -523,31 +523,6 @@ class RobertaQA(torch.nn.Module):
         # or (if labels are provided) (total_loss,)
         return outputs
 
-    @property
-    def params(self, lr=3e-5, lr_rate_decay=0.75):
-        lr_factors = []
-        lr_rate_decay = 0.75
-        lr = 5e-5
-        prefix = 'roberta.decoder.sentence_encoder.layers.'
-
-        num_layers = self.roberta.args.encoder_layers
-        for k, v in self.state_dict().items():
-            factor = 1
-
-            if 'sentence_encoder.layers' in k:
-                layer = int(k[len(prefix):].split('.')[0])
-                factor = lr_rate_decay**(num_layers-layer)
-
-            elif 'embed_tokens.weight' in k or 'embed_positions' in k:
-                layer = 0
-                factor = lr_rate_decay**(num_layers-layer)
-
-            lr_factors.append({
-                'params': v,
-                'lr': lr * factor,
-            })
-
-        return lr_factors
       
       
 # Eval Utilities
