@@ -543,7 +543,7 @@ def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.9):
           'params': v,
           'lr': lr * factor,
       })
-      
+  return lr_factors
       
       
       
@@ -683,7 +683,7 @@ for epoch in range(1, num_epochs + 1):
        
       if update:
         loss_sum /= num_cores
-        torch.nn.utils.clip_grad_norm_(params, 1.0)
+        optimizer.clip_grad_norm(1.0)
         optimizer.step()
         optimizer.zero_grad()
 
