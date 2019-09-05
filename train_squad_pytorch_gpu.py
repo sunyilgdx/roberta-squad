@@ -900,7 +900,7 @@ if fp16:
 params = get_decayed_param_groups(roberta, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay)  if lr_rate_decay < 1 else roberta.parameters()
   
   
-from fairseq.optim.adam import Adam
+from ranger import Adam
   
 #optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0.01)
 optimizer = Adam(params, lr=lr, betas=(0.9,0.98), weight_decay=0.01, eps=1e-6)
@@ -949,7 +949,7 @@ for epoch in range(1, num_epochs + 1):
        
       if update:
         loss_sum /= num_cores
-        optimizer.clip_grad_norm(1.0)
+        #optimizer.clip_grad_norm(1.0)
         optimizer.step()
         scheduler.step()
         optimizer.zero_grad()
