@@ -66,17 +66,17 @@ def char_anchors_to_tok_pos(r):
     return a, b
 
 def read(dat):
-    uid, inp, start, end, p_mask = marshal.loads(dat)
+    uid, inp, start, end, p_mask, answerable = marshal.loads(dat)
     inp = np.frombuffer(inp, dtype=np.uint16).astype(np.int32)
     p_mask = np.frombuffer(p_mask, dtype=np.bool).astype(np.float32)
-    return uid, inp, start, end, p_mask
-            
+    return uid, inp, start, end, p_mask, answerable
+
 def fread(f):
-    uid, inp, start, end, p_mask = marshal.load(f)
+    uid, inp, start, end, p_mask, answerable = marshal.load(f)
     inp = np.frombuffer(inp, dtype=np.uint16).astype(np.int32)
     p_mask = np.frombuffer(p_mask, dtype=np.bool).astype(np.float32)
-    return uid, inp, start, end, p_mask
-  
+    return uid, inp, start, end, p_mask, answerable
+            
 def gen(paths):
 
     for i,context,qas in data_from_path(paths):
@@ -141,7 +141,8 @@ def work(ss, debug=False):
                 np.array(inp,dtype=np.uint16).tobytes(),
                 start_position,
                 end_position,
-                np.array(p_mask,dtype=np.bool).tobytes()
+                np.array(p_mask,dtype=np.bool).tobytes(),
+                int(not no_ans)
                 )
             )
             
@@ -207,7 +208,7 @@ def generate_tfrecord(data_dir,
             c += 1
             if c % 2500 == 0:
                 t1 = time()
-                uid, inp, start, end, p_mask = read(record)
+                uid, inp, start, end, p_mask, answerable = read(record)
                 # print(uid, tk.convert_ids_to_tokens(inp) , start, end, p_mask)
                 print('%d features (%d no ans) extracted (time: %.2f s)'%(c, num_no_ans, t1-t0))
 
@@ -281,13 +282,13 @@ def from_records(records, batch_size = 48, half=False, shuffle=True):
       records = list(records)
       random.shuffle(records)
     for record_samples in chunks(records,batch_size):
-        uid, inp, start, end, p_mask = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
+        uid, inp, start, end, p_mask, answerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
         start = torch.LongTensor(start)
         end = torch.LongTensor(end)
         inp = pad(inp,dtype=np.long, torch_tensor=torch.LongTensor)
         p_mask = pad(p_mask,dtype=np.float32, torch_tensor=float)
 
-        yield inp, p_mask, start, end
+        yield inp, p_mask, start, end, answerable
 
 
 # Train Utilities
@@ -391,7 +392,20 @@ class DelayedCosineAnnealingLR(fairseq_LRScheduler):
                 for base_lr in self.base_lrs] if self.last_epoch > self.delayed_steps else \
                [base_lr for base_lr in self.base_lrs]
 
+            
+class LinearAnnealingLRWithWarmUp(fairseq_LRScheduler):
 
+    def __init__(self, optimizer, T_max, warmup_steps=0, last_epoch=-1):
+        self.T_max = T_max - warmup_steps
+        self.warmup_steps = warmup_steps
+        super(LinearAnnealingLRWithWarmUp, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        return [base_lr * (1 - (self.last_epoch - self.warmup_steps) / self.T_max)
+                for base_lr in self.base_lrs] if self.last_epoch > self.warmup_steps else \
+               [base_lr * (self.last_epoch/self.warmup_steps) for base_lr in self.base_lrs]
+
+base_lr * (1 - (self.last_epoch - self.warmup_steps) / self.T_max)
 # Model Utilities
 
 MAX_FLOAT16 = 2**15
@@ -475,11 +489,12 @@ class PoolerAnswerClass(nn.Module):
     """ Compute SQuAD 2.0 answer class from classification and start tokens hidden states. """
     def __init__(self, hidden_size):
         super(PoolerAnswerClass, self).__init__()
-        self.dense_0 = nn.Linear(hidden_size * 2, hidden_size)
+        self.dense_0 = nn.Linear(hidden_size, hidden_size)
         self.activation = nn.Tanh()
+        #self.dropout = nn.Dropout(p=dropout)
         self.dense_1 = nn.Linear(hidden_size, 1, bias=False)
 
-    def forward(self, hidden_states, start_states=None, start_positions=None, cls_index=None):
+    def forward(self, hidden_states, cls_index=None):
         """
         Args:
             One of ``start_states``, ``start_positions`` should be not None.
@@ -496,6 +511,23 @@ class PoolerAnswerClass(nn.Module):
                 no dependency on end_feature so that we can obtain one single `cls_logits`
                 for each sample
         """
+
+        if cls_index is not None:
+            cls_index = cls_index[:, None, None].expand(-1, -1, hsz) # shape (bsz, 1, hsz)
+            cls_token_state = hidden_states.gather(-2, cls_index).squeeze(-2) # shape (bsz, hsz)
+        else:
+            cls_token_state = hidden_states[:, 0, :] # shape (bsz, hsz)
+
+
+        x = self.dense_0(cls_token_state)
+        x = self.activation(x)
+        x = self.dense_1(x).squeeze(-1)
+
+
+        return x
+
+
+        '''
         hsz = hidden_states.shape[-1]
         assert start_states is not None or start_positions is not None, "One of start_states, start_positions should be not None"
         if start_positions is not None:
@@ -513,7 +545,7 @@ class PoolerAnswerClass(nn.Module):
         x = self.dense_1(x).squeeze(-1)
 
         return x
-
+        ''' 
 
 class RobertaQA(torch.nn.Module):
     def __init__(self, 
@@ -521,7 +553,8 @@ class RobertaQA(torch.nn.Module):
                  checkpoint_file='model.pt',
                  start_n_top = 5,
                  end_n_top = 5,
-                 use_ans_class = False):
+                 use_ans_class = False,
+                 strict = False):
         super(RobertaQA, self).__init__()
 		
         
@@ -551,7 +584,11 @@ class RobertaQA(torch.nn.Module):
         self.use_ans_class = use_ans_class
         
         print('loading from checkpoint...')
-        self.load_state_dict(state['model'], strict=False)
+        print('use_ans_class:', use_ans_class)
+        print('roberta_path:', roberta_path)
+        print('checkpoint_file:', checkpoint_file)
+        print('strict:', strict)
+        self.load_state_dict(state['model'], strict=strict)
 
     def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
         if tokens.dim() == 1:
@@ -572,7 +609,7 @@ class RobertaQA(torch.nn.Module):
         else:
             return features  # just the last layer's features
 
-    def forward(self, x, p_mask, start_positions=None, end_positions=None, cls_index=None, is_impossible=None): 
+    def forward(self, x, p_mask, start_positions=None, end_positions=None, answerable=None, cls_index=None): 
         use_ans_class = self.use_ans_class
         hidden_states = self.extract_features(x)  # [bs, seq_len, hs]
         
@@ -594,11 +631,12 @@ class RobertaQA(torch.nn.Module):
             end_loss = loss_fct(end_logits, end_positions)
             total_loss = (start_loss + end_loss) / 2
 
-            if use_ans_class and is_impossible is not None:
+            if use_ans_class:
+                assert answerable is not None
                 # Predict answerability from the representation of CLS and START
-                cls_logits = self.answer_class(hidden_states, start_positions=start_positions, cls_index=cls_index)
+                cls_logits = self.answer_class(hidden_states, cls_index=cls_index)
                 loss_fct_cls = nn.BCEWithLogitsLoss()
-                cls_loss = loss_fct_cls(cls_logits, is_impossible)
+                cls_loss = loss_fct_cls(cls_logits, answerable)
 
                 # note(zhiliny): by default multiply the loss by 0.5 so that the scale is comparable to start_loss and end_loss
                 total_loss += cls_loss * 0.5
@@ -631,6 +669,109 @@ class RobertaQA(torch.nn.Module):
             else:
               outputs = (start_top_log_probs, start_top_index, end_top_log_probs, end_top_index) + outputs
 
+        # return start_top_log_probs, start_top_index, end_top_log_probs, end_top_index, cls_logits
+        # or (if labels are provided) (total_loss,)
+        return outputs
+
+
+class FnnLayer(nn.Module):
+    """ Compute SQuAD start_logits from sequence hidden states. """
+    def __init__(self, hidden_size, dropout=0.2):
+        super(FnnLayer, self).__init__()
+        self.dense = nn.Linear(hidden_size, hidden_size)
+        self.activation = Mish()
+        self.dropout = nn.Dropout(p=dropout)
+        
+    def forward(self, hidden_states):
+
+        return self.dropout(self.activation(self.dense(hidden_states).squeeze(-1))) + hidden_states
+
+class RobertaQAEmbed(torch.nn.Module):
+    def __init__(self, 
+                 roberta_path='roberta.large',
+                 checkpoint_file='model.pt',
+                 strict = False):
+        super(RobertaQA, self).__init__()
+		
+        
+        state = torch.load(os.path.join(roberta_path, checkpoint_file))
+        
+        args = state['args']
+        roberta_large_architecture(args)
+
+        if not hasattr(args, 'max_positions'):
+            args.max_positions = args.tokens_per_sample
+
+        self.dictionary = dictionary = Dictionary.load(os.path.join(roberta_path, 'dict.txt'))
+        dictionary.add_symbol('<mask>')
+
+        model = RobertaModel(args, RobertaEncoder(args, dictionary))
+        self.args = args
+        
+        self.roberta = model
+        
+        hs = args.encoder_embed_dim
+        self.log_softmax = torch.nn.LogSoftmax(dim=1)
+        self.q_fnn_layer = FnnLayer(hs)
+        self.a_fnn_layer = FnnLayer(hs)
+        
+        print('loading from checkpoint...')
+        self.load_state_dict(state['model'], strict=strict)
+
+    def extract_features(self, tokens: torch.LongTensor, return_all_hiddens: bool = False) -> torch.Tensor:
+        if tokens.dim() == 1:
+            tokens = tokens.unsqueeze(0)
+        if tokens.size(-1) > self.roberta.max_positions():
+            raise ValueError('tokens exceeds maximum length: {} > {}'.format(
+                tokens.size(-1), self.roberta.max_positions()
+            ))
+        features, extra = self.roberta(
+            tokens,
+            features_only=True,
+            return_all_hiddens=return_all_hiddens,
+        )
+        if return_all_hiddens:
+            # convert from T x B x C -> B x T x C
+            inner_states = extra['inner_states']
+            return [inner_state.transpose(0, 1) for inner_state in inner_states]
+        else:
+            return features  # just the last layer's features
+
+    def forward(self, q=None, a=None, normalize=False, return_loss=False): 
+        
+        if q and a:
+          assert q.shape[0] == a.shape[0]
+		  q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0)).mean(1).split(q.size(0))
+        elif q:
+          q_hs = self.extract_features(q).mean(1)  # [bs, hs]
+        elif a:
+          a_hs = self.extract_features(a).mean(1)  # [bs, hs]
+        if q:
+          q_embed = self.q_fnn_layer(q_hs)
+        if a:
+          a_embed = self.a_fnn_layer(q_hs)
+
+        outputs = () 
+
+        if return_loss:
+		    if not (q and a):
+			  raise Exception('Cannot calculate loss without both q and a')
+            q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
+            a_embed_norm = a_embed / a_embed.norm(dim=1)[:,None]
+            loss = -(torch.eye(q_hs.shape[0]) * log_softmax(torch.mm(q_embed_norm,a_embed_norm.t()) )).sum()
+            outputs = (total_loss,)
+
+        else:
+		    if q:
+			  if normalize:
+			    q_embed = q_embed / q_embed.norm(dim=1)[:,None]
+              outputs = outputs + (q_embed,)
+			  
+		    if a:
+			  if normalize:
+			    a_embed = a_embed / a_embed.norm(dim=1)[:,None]
+              outputs = outputs + (a_embed,)
+			  
         # return start_top_log_probs, start_top_index, end_top_log_probs, end_top_index, cls_logits
         # or (if labels are provided) (total_loss,)
         return outputs
@@ -698,7 +839,7 @@ def _compute_softmax(scores):
 
 from time import time
 
-roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='model_new.pt')
+roberta_single = RobertaQA(use_ans_class=True, roberta_path=roberta_directory, checkpoint_file='model_new.pt', strict=False)
 
 
   
@@ -708,11 +849,11 @@ log_steps = 50
 num_epochs = 2
 max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
-effective_batch_size = 24             # 8  bs per device
-update_freq = 1                       # 4  bs per device
-lr = 5e-5
-lr_flat_ratio = 0.5
-lr_rate_decay=0.908517
+effective_batch_size = 48             # 8  bs per device
+update_freq = 2                       # 4  bs per device
+lr = 1.5e-5
+lr_flat_ratio = 0.06
+lr_rate_decay= 1  #0.908517
 
 fp16 = True
 class args:
@@ -758,7 +899,11 @@ if fp16:
   
 params = get_decayed_param_groups(roberta, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay)  if lr_rate_decay < 1 else roberta.parameters()
   
-optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0)
+  
+from fairseq.optim.adam import Adam
+  
+#optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0.01)
+optimizer = Adam(params, lr=lr, betas=(0.9,0.98), weight_decay=0.01, eps=1e-6)
 
 if fp16:
   optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
@@ -773,7 +918,8 @@ accumulated = 0
 loss_sum = 0.
 
 
-scheduler = DelayedCosineAnnealingLR(optimizer, num_steps, delayed_steps=num_steps*lr_flat_ratio)
+#scheduler = DelayedCosineAnnealingLR(optimizer, num_steps, delayed_steps=int(num_steps*lr_flat_ratio))
+scheduler = LinearAnnealingLRWithWarmUp(optimizer, num_steps, warmup_steps=int(num_steps*lr_flat_ratio))
 
 
 
@@ -782,14 +928,15 @@ from time import time
 t0 = time()
 X = 0
 for epoch in range(1, num_epochs + 1):
-    for inp, p_mask, start, end in data:
+    for inp, p_mask, start, end, answerable in data:
       X += 1
       accumulated += 1
       update = accumulated >= update_freq
       (loss, ) = roberta(inp.to(device=device), 
                        p_mask.to(device=device), 
                        start.to(device=device), 
-                       end.to(device=device))
+                       end.to(device=device),
+                       answerable.to(device=device))
       if num_cores > 1:
         loss = loss.sum()
       
@@ -810,14 +957,14 @@ for epoch in range(1, num_epochs + 1):
       if (X-1) % log_steps == 0:
         t1 = time()
         rate = X/(t1-t0)
-        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}, learning-rate={:.2f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0, optimizer.wrapped_optimizer.param_groups[-1]['lr']))
+        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}, learning-rate={:.8f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0, optimizer.wrapped_optimizer.param_groups[-1]['lr']))
                            
       if update:                
         accumulated = 0
         loss_sum = 0
 
 
-torch.save({'model':roberta.state_dict(), 'args': roberta_single.args}, 'roberta_qa_squad_24.pt')
+torch.save({'model':roberta_single.state_dict(), 'args': roberta_single.args}, 'roberta.large/roberta_qa_squad_24.pt')
 
 
 
