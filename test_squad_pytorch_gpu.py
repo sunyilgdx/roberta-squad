@@ -809,7 +809,7 @@ def handle_prediction_by_qid(self,
               end_log_prob = end_top_log_probs[j_index]
               end_index = end_top_index[j_index]
 
-              if start_index > len(r.segments) or end_index > len(r.segments):
+              if start_index >= len(r.segments) or end_index >= len(r.segments):
                 continue
 
               seg_s = r.segments[start_index]
