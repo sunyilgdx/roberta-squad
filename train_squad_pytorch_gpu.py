@@ -636,7 +636,7 @@ class RobertaQA(torch.nn.Module):
         return outputs
 
 
-def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.75):
+def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.908517):
   lr_factors = []
   prefix = 'module.roberta.decoder.sentence_encoder.layers.'
 
@@ -712,7 +712,7 @@ effective_batch_size = 24             # 8  bs per device
 update_freq = 1                       # 4  bs per device
 lr = 5e-5
 lr_flat_ratio = 0.5
-lr_rate_decay=1
+lr_rate_decay=0.908517
 
 fp16 = True
 class args:
