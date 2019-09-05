@@ -63,6 +63,12 @@ class Ranger(Optimizer):
             for p in param_group['params']:
                 yield p
 
+    def clip_grad_norm(self, max_norm):
+        """Clips gradient norm."""
+        if max_norm > 0:
+            return torch.nn.utils.clip_grad_norm_(self.params, max_norm)
+        else:
+            return math.sqrt(sum(p.grad.data.norm()**2 for p in self.params if p.grad is not None))
 
     def multiply_grads(self, c):
         """Multiplies grads by a constant *c*."""
