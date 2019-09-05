@@ -706,7 +706,7 @@ log_steps = 100
 num_epochs = 2
 max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
-effective_batch_size = 32             # 8  bs per device
+effective_batch_size = 24             # 8  bs per device
 update_freq = 1                       # 4  bs per device
 lr = 5e-5
 lr_flat_ratio = 0.5
@@ -802,10 +802,11 @@ for epoch in range(1, num_epochs + 1):
       if update:
         loss_sum /= num_cores
         optimizer.clip_grad_norm(1.0)
+        optimizer.step()
         scheduler.step()
         optimizer.zero_grad()
 
-      if X % log_steps == 0:
+      if (X-1) % log_steps == 0:
         t1 = time()
         rate = X/(t1-t0)
         print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0))
