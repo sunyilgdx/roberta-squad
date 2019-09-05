@@ -405,7 +405,6 @@ class LinearAnnealingLRWithWarmUp(fairseq_LRScheduler):
                 for base_lr in self.base_lrs] if self.last_epoch > self.warmup_steps else \
                [base_lr * (self.last_epoch/self.warmup_steps) for base_lr in self.base_lrs]
 
-base_lr * (1 - (self.last_epoch - self.warmup_steps) / self.T_max)
 # Model Utilities
 
 MAX_FLOAT16 = 2**15
