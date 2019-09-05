@@ -10,6 +10,7 @@ import numpy as np
 from torch.nn import functional as F
 from torch.nn import CrossEntropyLoss
 from ranger import Ranger
+from ranger import Adam
 import json
 from tokenizer.validate import validate
 from copy import deepcopy
@@ -900,7 +901,6 @@ if fp16:
 params = get_decayed_param_groups(roberta, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay)  if lr_rate_decay < 1 else roberta.parameters()
   
   
-from ranger import Adam
   
 #optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0.01)
 optimizer = Adam(params, lr=lr, betas=(0.9,0.98), weight_decay=0.01, eps=1e-6)
@@ -910,7 +910,7 @@ if fp16:
 
 import random
 data = list((from_records('qa_records_squad', batch_size, half=fp16)))
-num_steps = len(data) * num_epochs
+num_steps = len(data) * num_epochs // update_freq
 print('batch_size:  ',batch_size)
 print('number_steps:',num_steps)
 
