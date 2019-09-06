@@ -67,16 +67,16 @@ def char_anchors_to_tok_pos(r):
     return a, b
 
 def read(dat):
-    uid, inp, start, end, p_mask, answerable = marshal.loads(dat)
+    uid, inp, start, end, p_mask, unanswerable = marshal.loads(dat)
     inp = np.frombuffer(inp, dtype=np.uint16).astype(np.int32)
     p_mask = np.frombuffer(p_mask, dtype=np.bool).astype(np.float32)
-    return uid, inp, start, end, p_mask, answerable
+    return uid, inp, start, end, p_mask, unanswerable
 
 def fread(f):
-    uid, inp, start, end, p_mask, answerable = marshal.load(f)
+    uid, inp, start, end, p_mask, unanswerable = marshal.load(f)
     inp = np.frombuffer(inp, dtype=np.uint16).astype(np.int32)
     p_mask = np.frombuffer(p_mask, dtype=np.bool).astype(np.float32)
-    return uid, inp, start, end, p_mask, answerable
+    return uid, inp, start, end, p_mask, unanswerable
             
 def gen(paths):
 
@@ -128,14 +128,16 @@ def work(ss, debug=False):
             p_mask = r.p_mask
             uid = r.unique_index[0]*1000 + r.unique_index[1]
             if start_position == -1 and end_position == -1:
-                start_position = len(inp) - 3
-                end_position = len(inp) - 2
-            # tk.convert_tokens_to_ids(tk.createTokens('d. No answer').all_doc_tokens)
+                start_position = 0
+                end_position = 0
+                
             
-            no_ans = inp[start_position] == 440 and  inp[end_position] == 1948
+            no_ans = start_position == 0
+            
             #if no_ans:
             #    print(q['answer_text'], '>>', r.all_doc_tokens[start_position:end_position+1])
             assert start_position >= 0 and end_position >= 0 and start_position < len(inp) and end_position < len(inp)
+            assert len(inp) <= max_seq_length
             record = marshal.dumps(
                 (
                 uid,
@@ -143,7 +145,7 @@ def work(ss, debug=False):
                 start_position,
                 end_position,
                 np.array(p_mask,dtype=np.bool).tobytes(),
-                int(not no_ans)
+                int(no_ans)
                 )
             )
             
@@ -209,7 +211,7 @@ def generate_tfrecord(data_dir,
             c += 1
             if c % 2500 == 0:
                 t1 = time()
-                uid, inp, start, end, p_mask, answerable = read(record)
+                uid, inp, start, end, p_mask, unanswerable = read(record)
                 # print(uid, tk.convert_ids_to_tokens(inp) , start, end, p_mask)
                 print('%d features (%d no ans) extracted (time: %.2f s)'%(c, num_no_ans, t1-t0))
 
@@ -283,14 +285,14 @@ def from_records(records, batch_size = 48, half=False, shuffle=True):
       records = list(records)
       random.shuffle(records)
     for record_samples in chunks(records,batch_size):
-        uid, inp, start, end, p_mask, answerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
+        uid, inp, start, end, p_mask, unanswerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
         start = torch.LongTensor(start)
         end = torch.LongTensor(end)
-        answerable = float(answerable)
+        unanswerable = float(unanswerable)
         inp = pad(inp,dtype=np.long, torch_tensor=torch.LongTensor)
         p_mask = pad(p_mask,dtype=np.float32, torch_tensor=float)
 
-        yield inp, p_mask, start, end, answerable
+        yield inp, p_mask, start, end, unanswerable
 
 
 # Train Utilities
@@ -426,72 +428,13 @@ class Mish(nn.Module):
         #inlining this saves 1 second per epoch (V100 GPU) vs having a temp x and then returning x(!)
         return x *( torch.tanh(F.softplus(x)))
 
-class PoolerStartLogits(nn.Module):
-    """ Compute SQuAD start_logits from sequence hidden states. """
-    def __init__(self, hidden_size):
-        super(PoolerStartLogits, self).__init__()
-        self.dense = nn.Linear(hidden_size, 1)
-
-    def forward(self, hidden_states, p_mask=None):
-        """ Args:
-            **p_mask**: (`optional`) ``torch.FloatTensor`` of shape `(batch_size, seq_len)`
-                invalid position mask such as query and special symbols (PAD, SEP, CLS)
-                1.0 means token should be masked.
-        """
-        x = self.dense(hidden_states).squeeze(-1)
-
-        if p_mask is not None:
-            x = x * (1 - p_mask) - max_float * p_mask
-
-        return x
-
-
-class PoolerEndLogits(nn.Module):
-    """ Compute SQuAD end_logits from sequence hidden states and start token hidden state.
-    """
-    def __init__(self, hidden_size):
-        super(PoolerEndLogits, self).__init__()
-        self.dense_0 = nn.Linear(hidden_size * 2, hidden_size)
-        self.activation = nn.Tanh()
-        self.LayerNorm = nn.LayerNorm(hidden_size, eps=min_float)
-        self.dense_1 = nn.Linear(hidden_size, 1)
-
-    def forward(self, hidden_states, start_states=None, start_positions=None, p_mask=None):
-        """ Args:
-            One of ``start_states``, ``start_positions`` should be not None.
-            If both are set, ``start_positions`` overrides ``start_states``.
-
-            **start_states**: ``torch.LongTensor`` of shape identical to hidden_states
-                hidden states of the first tokens for the labeled span.
-            **start_positions**: ``torch.LongTensor`` of shape ``(batch_size,)``
-                position of the first token for the labeled span:
-            **p_mask**: (`optional`) ``torch.FloatTensor`` of shape ``(batch_size, seq_len)``
-                Mask of invalid position such as query and special symbols (PAD, SEP, CLS)
-                1.0 means token should be masked.
-        """
-        assert start_states is not None or start_positions is not None, "One of start_states, start_positions should be not None"
-        if start_positions is not None:
-            slen, hsz = hidden_states.shape[-2:]
-            start_positions = start_positions[:, None, None].expand(-1, -1, hsz) # shape (bsz, 1, hsz)
-            start_states = hidden_states.gather(-2, start_positions) # shape (bsz, 1, hsz)
-            start_states = start_states.expand(-1, slen, -1) # shape (bsz, slen, hsz)
-
-        x = self.dense_0(torch.cat([hidden_states, start_states], dim=-1))
-        x = self.activation(x)
-        x = self.LayerNorm(x)
-        x = self.dense_1(x).squeeze(-1)
-
-        if p_mask is not None:
-            x = x * (1 - p_mask) - max_float * p_mask
-
-        return x
 
 class PoolerAnswerClass(nn.Module):
     """ Compute SQuAD 2.0 answer class from classification and start tokens hidden states. """
     def __init__(self, hidden_size):
         super(PoolerAnswerClass, self).__init__()
         self.dense_0 = nn.Linear(hidden_size, hidden_size)
-        self.activation = nn.Tanh()
+        self.activation = nn.Tanh() #Mish() # nn.Tanh()
         #self.dropout = nn.Dropout(p=dropout)
         self.dense_1 = nn.Linear(hidden_size, 1, bias=False)
 
@@ -500,11 +443,6 @@ class PoolerAnswerClass(nn.Module):
         Args:
             One of ``start_states``, ``start_positions`` should be not None.
             If both are set, ``start_positions`` overrides ``start_states``.
-
-            **start_states**: ``torch.LongTensor`` of shape identical to ``hidden_states``.
-                hidden states of the first tokens for the labeled span.
-            **start_positions**: ``torch.LongTensor`` of shape ``(batch_size,)``
-                position of the first token for the labeled span.
             **cls_index**: torch.LongTensor of shape ``(batch_size,)``
                 position of the CLS token. If None, take the last token.
 
@@ -527,27 +465,6 @@ class PoolerAnswerClass(nn.Module):
 
         return x
 
-
-        '''
-        hsz = hidden_states.shape[-1]
-        assert start_states is not None or start_positions is not None, "One of start_states, start_positions should be not None"
-        if start_positions is not None:
-            start_positions = start_positions[:, None, None].expand(-1, -1, hsz) # shape (bsz, 1, hsz)
-            start_states = hidden_states.gather(-2, start_positions).squeeze(-2) # shape (bsz, hsz)
-
-        if cls_index is not None:
-            cls_index = cls_index[:, None, None].expand(-1, -1, hsz) # shape (bsz, 1, hsz)
-            cls_token_state = hidden_states.gather(-2, cls_index).squeeze(-2) # shape (bsz, hsz)
-        else:
-            cls_token_state = hidden_states[:, 0, :] # shape (bsz, hsz)
-
-        x = self.dense_0(torch.cat([start_states, cls_token_state], dim=-1))
-        x = self.activation(x)
-        x = self.dense_1(x).squeeze(-1)
-
-        return x
-        ''' 
-
 class RobertaQA(torch.nn.Module):
     def __init__(self, 
                  roberta_path='roberta.large',
@@ -557,6 +474,7 @@ class RobertaQA(torch.nn.Module):
                  use_ans_class = False,
                  strict = False):
         super(RobertaQA, self).__init__()
+        
         
         state = torch.load(os.path.join(roberta_path, checkpoint_file))
         
@@ -575,8 +493,7 @@ class RobertaQA(torch.nn.Module):
         self.roberta = model
         
         hs = args.encoder_embed_dim
-        self.start_logits = PoolerStartLogits(hs)
-        self.end_logits = PoolerEndLogits(hs)
+        self.span_logits =  nn.Linear(hs, 2)
         self.answer_class = PoolerAnswerClass(hs)
         
         self.start_n_top = start_n_top
@@ -609,68 +526,41 @@ class RobertaQA(torch.nn.Module):
         else:
             return features  # just the last layer's features
 
-    def forward(self, x, p_mask, start_positions=None, end_positions=None, answerable=None, cls_index=None): 
+    def forward(self, x, start_positions=None, end_positions=None, unanswerable=None, cls_index=None): 
         use_ans_class = self.use_ans_class
         hidden_states = self.extract_features(x)  # [bs, seq_len, hs]
         
-        start_logits = self.start_logits(hidden_states, p_mask=p_mask)
+        start_logits, end_logits = self.span_logits(hidden_states).split(1, dim=-1)
+        start_logits = start_logits.squeeze(-1)
+        end_logits = end_logits.squeeze(-1)
 
-        outputs = ()  # Keep mems, hidden states, attentions if there are in it
+        if use_ans_class:
+            # Predict answerability from the representation of CLS and START
+            cls_logits = self.answer_class(hidden_states, cls_index=cls_index)
+            
 
+        outputs = (start_logits, end_logits, cls_logits)  # Keep mems, hidden states, attentions if there are in it
+
+            
         if start_positions is not None and end_positions is not None:
             # If we are on multi-GPU, let's remove the dimension added by batch splitting
-            for x in (start_positions, end_positions, answerable):
+            for x in (start_positions, end_positions, unanswerable):
                 if x is not None and x.dim() > 1:
                     x.squeeze_(-1)
-
-            # during training, compute the end logits based on the ground truth of the start position
-            end_logits = self.end_logits(hidden_states, start_positions=start_positions, p_mask=p_mask)
 
             loss_fct = CrossEntropyLoss()
             start_loss = loss_fct(start_logits, start_positions)
             end_loss = loss_fct(end_logits, end_positions)
             total_loss = (start_loss + end_loss) / 2
 
-            if use_ans_class:
-                assert answerable is not None
-                # Predict answerability from the representation of CLS and START
-                cls_logits = self.answer_class(hidden_states, cls_index=cls_index)
-                loss_fct_cls = nn.BCEWithLogitsLoss()
-                cls_loss = loss_fct_cls(cls_logits, answerable)
 
-                # note(zhiliny): by default multiply the loss by 0.5 so that the scale is comparable to start_loss and end_loss
-                total_loss += cls_loss * 0.5
+            loss_fct_cls = nn.BCEWithLogitsLoss()
+            cls_loss = loss_fct_cls(cls_logits, unanswerable)
+            
+            total_loss += cls_loss * 0.5
 
-            outputs = (total_loss,) + outputs
+            outputs = (total_loss,)
 
-        else:
-            # during inference, compute the end logits based on beam search
-            bsz, slen, hsz = hidden_states.size()
-            start_log_probs = F.softmax(start_logits, dim=-1) # shape (bsz, slen)
-
-            start_top_log_probs, start_top_index = torch.topk(start_log_probs, self.start_n_top, dim=-1) # shape (bsz, start_n_top)
-            start_top_index_exp = start_top_index.unsqueeze(-1).expand(-1, -1, hsz) # shape (bsz, start_n_top, hsz)
-            start_states = torch.gather(hidden_states, -2, start_top_index_exp) # shape (bsz, start_n_top, hsz)
-            start_states = start_states.unsqueeze(1).expand(-1, slen, -1, -1) # shape (bsz, slen, start_n_top, hsz)
-
-            hidden_states_expanded = hidden_states.unsqueeze(2).expand_as(start_states) # shape (bsz, slen, start_n_top, hsz)
-            p_mask = p_mask.unsqueeze(-1) if p_mask is not None else None
-            end_logits = self.end_logits(hidden_states_expanded, start_states=start_states, p_mask=p_mask)
-            end_log_probs = F.softmax(end_logits, dim=1) # shape (bsz, slen, start_n_top)
-
-            end_top_log_probs, end_top_index = torch.topk(end_log_probs, self.end_n_top, dim=1) # shape (bsz, end_n_top, start_n_top)
-            end_top_log_probs = end_top_log_probs.view(-1, self.start_n_top * self.end_n_top)
-            end_top_index = end_top_index.view(-1, self.start_n_top * self.end_n_top)
-
-            #start_states = torch.einsum("blh,bl->bh", hidden_states, start_log_probs)  # get the representation of START as weighted sum of hidden states
-            if use_ans_class:
-              cls_logits = self.answer_class(hidden_states, cls_index=cls_index)  # Shape (batch size,): one single `cls_logits` for each sample
-              outputs = (start_top_log_probs, start_top_index, end_top_log_probs, end_top_index, cls_logits) + outputs
-            else:
-              outputs = (start_top_log_probs, start_top_index, end_top_log_probs, end_top_index) + outputs
-
-        # return start_top_log_probs, start_top_index, end_top_log_probs, end_top_index, cls_logits
-        # or (if labels are provided) (total_loss,)
         return outputs
 
 
@@ -796,7 +686,7 @@ def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.90851
           'lr': lr * factor,
       })
   return lr_factors
-
+      
 # Eval Utilities
 
 import collections
@@ -944,47 +834,38 @@ def handle_prediction_by_qid(self,
       this_paragraph_text = paragraph_text[original_s:original_e]
       
       
-      no_ans_start = len(r.all_doc_tokens) - 3
-      
       cur_null_score = -1e6
       
       sub_prelim_predictions = []
 
       if use_ans_class:
-        start_top_log_probs, start_top_index, end_top_log_probs, end_top_index, cls_logits = result
+        start_top_log_probs, end_top_log_probs, cls_logits = result
         cur_null_score = cls_logits.tolist()
         
       else:
-        start_top_log_probs, start_top_index, end_top_log_probs, end_top_index = result
+        start_top_log_probs, end_top_log_probs = result
         
       if True:
-        start_top_log_probs = start_top_log_probs.tolist()
-        start_top_index = start_top_index.tolist()
+        start_top_log_probs = start_top_log_probs.cpu().detach().numpy()
+        end_top_log_probs = end_top_log_probs.cpu().detach().numpy()
+        start_top_index = start_top_log_probs.argsort()[-self.start_n_top:][::-1].tolist()
+        end_top_index = end_top_log_probs.argsort()[-self.end_n_top:][::-1].tolist()
+        start_top_log_probs = start_top_log_probs.to_list()
         end_top_log_probs = end_top_log_probs.tolist()
-        end_top_index = end_top_index.tolist()
-        
-        for i in range(self.start_n_top):
-            for j in range(self.end_n_top):
-
-              start_log_prob = start_top_log_probs[i]
-              start_index = start_top_index[i]
-
-              j_index = i * self.end_n_top + j
-
-              end_log_prob = end_top_log_probs[j_index]
-              end_index = end_top_index[j_index]
-
+        for start_index in start_top_index:
+            for end_index in end_top_index:
+              if start_index == 0 or end_index == 0:
+                continue
+              if end_index < start_index:
+                continue
               if start_index >= len(r.segments) or end_index >= len(r.segments):
                 continue
-
               seg_s = r.segments[start_index]
               seg_e = r.segments[end_index]
 
               if seg_s != seg_e:
                 continue
 
-              if end_index < start_index:
-                continue
               if r.is_max_context[start_index] == 0 :
                 continue
 
@@ -993,8 +874,10 @@ def handle_prediction_by_qid(self,
                 continue
                 
                 
-              if start_index == no_ans_start and end_index == no_ans_start + 1:
-                continue
+
+              start_log_prob = start_top_log_probs[start_index]
+              end_log_prob = end_top_log_probs[end_index]
+
 
               sub_prelim_predictions.append(
                   _PrelimPrediction(
@@ -1013,7 +896,7 @@ def handle_prediction_by_qid(self,
 
     prelim_predictions = sorted(
         prelim_predictions,
-        key=(lambda x: (x.start_log_prob + x.end_log_prob)) if use_ans_class else (lambda x: (x.start_log_prob + x.end_log_prob - x.cur_null_score)),
+        key=(lambda x: (x.start_log_prob + x.end_log_prob))),
         reverse=True)
 
     seen_predictions = {}
