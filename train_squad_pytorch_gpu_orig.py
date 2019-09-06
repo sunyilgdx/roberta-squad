@@ -537,11 +537,11 @@ class RobertaQA(torch.nn.Module):
 
         outputs = (start_logits, end_logits)  # Keep mems, hidden states, attentions if there are in it
 
-		if use_ans_class:
-			# Predict answerability from the representation of CLS and START
-			cls_logits = self.answer_class(hidden_states, cls_index=cls_index)
-			
-			
+        if use_ans_class:
+            # Predict answerability from the representation of CLS and START
+            cls_logits = self.answer_class(hidden_states, cls_index=cls_index)
+            
+            
         if start_positions is not None and end_positions is not None:
             # If we are on multi-GPU, let's remove the dimension added by batch splitting
             for x in (start_positions, end_positions, unanswerable):
@@ -554,10 +554,10 @@ class RobertaQA(torch.nn.Module):
             total_loss = (start_loss + end_loss) / 2
 
 
-			loss_fct_cls = nn.BCEWithLogitsLoss()
-			cls_loss = loss_fct_cls(cls_logits, unanswerable)
-			
-			total_loss += cls_loss * 0.5
+            loss_fct_cls = nn.BCEWithLogitsLoss()
+            cls_loss = loss_fct_cls(cls_logits, unanswerable)
+            
+            total_loss += cls_loss * 0.5
 
             outputs = (total_loss,)
 
@@ -799,7 +799,7 @@ if fp16:
 
 import random
 data = list((from_records('qa_records_squad', batch_size, half=fp16)))
-num_steps = len(data) * num_epochs // update_freq	
+num_steps = len(data) * num_epochs // update_freq    
 print('batch_size:  ',batch_size)
 print('number_steps:',num_steps)
 
