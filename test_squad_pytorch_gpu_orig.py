@@ -896,7 +896,7 @@ def handle_prediction_by_qid(self,
 
     prelim_predictions = sorted(
         prelim_predictions,
-        key=(lambda x: (x.start_log_prob + x.end_log_prob))),
+        key=(lambda x: (x.start_log_prob + x.end_log_prob)),
         reverse=True)
 
     seen_predictions = {}
