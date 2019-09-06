@@ -850,7 +850,7 @@ def handle_prediction_by_qid(self,
         end_top_log_probs = end_top_log_probs.cpu().detach().numpy()
         start_top_index = start_top_log_probs.argsort()[-self.start_n_top:][::-1].tolist()
         end_top_index = end_top_log_probs.argsort()[-self.end_n_top:][::-1].tolist()
-        start_top_log_probs = start_top_log_probs.to_list()
+        start_top_log_probs = start_top_log_probs.tolist()
         end_top_log_probs = end_top_log_probs.tolist()
         for start_index in start_top_index:
             for end_index in end_top_index:
