@@ -727,7 +727,7 @@ def _compute_softmax(scores):
 
 from time import time
 
-roberta_single = RobertaQA(roberta_path=roberta_directory, checkpoint_file='roberta_qa_squad_24.pt', strict=True)
+roberta_single = RobertaQA(use_ans_class=True, roberta_path=roberta_directory, checkpoint_file='roberta_qa_squad_24.pt', strict=True)
 
 
 
