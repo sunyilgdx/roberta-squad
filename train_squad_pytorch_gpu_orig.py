@@ -731,6 +731,10 @@ from time import time
 
 roberta_single = RobertaQA(use_ans_class=True, roberta_path=roberta_directory, checkpoint_file='model_new.pt', strict=False)
 
+use_gpu = torch.cuda.is_available() if use_gpu is None else use_gpu
+
+device = torch.device("cuda:0" if use_gpu else "cpu")
+
 
 roberta_single.to(device)
   
@@ -786,10 +790,6 @@ if num_cores > 1:
 {'model':roberta.state_dict(), 'args': roberta_single.args}
   
 print("Let's use", num_cores, "GPUs!")
-
-use_gpu = torch.cuda.is_available() if use_gpu is None else use_gpu
-
-device = torch.device("cuda:0" if use_gpu else "cpu")
 
 
 if not use_gpu:
