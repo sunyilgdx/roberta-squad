@@ -732,6 +732,7 @@ from time import time
 roberta_single = RobertaQA(use_ans_class=True, roberta_path=roberta_directory, checkpoint_file='model_new.pt', strict=False)
 
 
+roberta_single.to(device)
   
 
 
@@ -795,7 +796,6 @@ if not use_gpu:
   fp16 = False
 
 
-roberta.to(device)
 
 if fp16:
   max_float = MAX_FLOAT16
