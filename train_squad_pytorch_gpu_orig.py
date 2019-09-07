@@ -841,20 +841,19 @@ for epoch in range(1, num_epochs + 1):
         loss = loss / update_freq
       
       if fp16:
-        with amp.scale_loss(loss, optimizer) as scaled_loss:
-            replay_batch = True
-            while replay_batch:
-                default_optimizer_step = optimizer.step
+        replay_batch = True
+        while replay_batch:
+            default_optimizer_step = optimizer.step
 
-                with amp.scale_loss(loss, optimizer) as scaled_loss:
-                    scaled_loss.backward()
-            
-                # If Amp detects an overflow, it patches optimizer.step.  In other words, if optimizer.step
-                # was left unpatched, there was no overflow, and we don't need to replay.
-                if optimizer.step is default_optimizer_step:
-                    replay_batch = False
-                else:
-                    print("Overflowed, reducing loss scale and replaying batch.")
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
+        
+            # If Amp detects an overflow, it patches optimizer.step.  In other words, if optimizer.step
+            # was left unpatched, there was no overflow, and we don't need to replay.
+            if optimizer.step is default_optimizer_step:
+                replay_batch = False
+            else:
+                print("Overflowed, reducing loss scale and replaying batch.")
 
         torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), 1.0)
         # optimizer.backward(loss)
