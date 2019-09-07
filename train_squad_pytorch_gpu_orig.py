@@ -303,19 +303,19 @@ from functools import wraps
 import warnings
 
 
-class fairseq_LRScheduler(object):
+class LRScheduler(object):
     def __init__(self, optimizer, last_epoch=-1):
         self.optimizer = optimizer
         if last_epoch == -1:
-            for group in optimizer.wrapped_optimizer.param_groups:
+            for group in optimizer.param_groups:
                 group.setdefault('initial_lr', group['lr'])
             last_epoch = 0
         else:
-            for i, group in enumerate(optimizer.wrapped_optimizer.param_groups):
+            for i, group in enumerate(optimizer.param_groups):
                 if 'initial_lr' not in group:
                     raise KeyError("param 'initial_lr' is not specified "
                                    "in param_groups[{}] when resuming an optimizer".format(i))
-        self.base_lrs = list(map(lambda group: group['initial_lr'], optimizer.wrapped_optimizer.param_groups))
+        self.base_lrs = list(map(lambda group: group['initial_lr'], optimizer.param_groups))
         self.last_epoch = last_epoch
 
         # Following https://github.com/pytorch/pytorch/issues/20124
@@ -377,12 +377,12 @@ class fairseq_LRScheduler(object):
         if epoch is None:
             epoch = self.last_epoch + 1
         self.last_epoch = epoch
-        for param_group, lr in zip(self.optimizer.wrapped_optimizer.param_groups, self.get_lr()):
+        for param_group, lr in zip(self.optimizer.param_groups, self.get_lr()):
             param_group['lr'] = lr
             
             
             
-class DelayedCosineAnnealingLR(fairseq_LRScheduler):
+class DelayedCosineAnnealingLR(LRScheduler):
 
     def __init__(self, optimizer, T_max, delayed_steps=0, eta_min=0, last_epoch=-1):
         self.T_max = T_max - delayed_steps
@@ -397,7 +397,7 @@ class DelayedCosineAnnealingLR(fairseq_LRScheduler):
                [base_lr for base_lr in self.base_lrs]
 
             
-class LinearAnnealingLRWithWarmUp(fairseq_LRScheduler):
+class LinearAnnealingLRWithWarmUp(LRScheduler):
 
     def __init__(self, optimizer, T_max, warmup_steps=0, last_epoch=-1):
         self.T_max = T_max - warmup_steps
@@ -863,7 +863,8 @@ for epoch in range(1, num_epochs + 1):
       if (X-1) % log_steps == 0:
         t1 = time()
         rate = X/(t1-t0)
-        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}, learning-rate={:.8f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0, optimizer.wrapped_optimizer.param_groups[-1]['lr']))
+        #print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}, learning-rate={:.8f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0, optimizer.wrapped_optimizer.param_groups[-1]['lr']))
+        print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}, learning-rate={:.8f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0, optimizer.param_groups[-1]['lr']))
                            
       if update:                
         accumulated = 0
