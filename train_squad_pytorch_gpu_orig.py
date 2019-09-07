@@ -675,7 +675,7 @@ def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.90851
       param = {
           'params': v,
       }
-	  if lr_rate_decay and lr_rate_decay != 1:
+      if lr_rate_decay and lr_rate_decay != 1:
         factor = 1
         if 'sentence_encoder.layers' in k:
           layer = int(k[len(prefix):].split('.')[0])
@@ -793,7 +793,7 @@ print("Let's use", num_cores, "GPUs!")
 
 
 
-params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay, weight_decay=weight_decay)  if lr_rate_decay < 1 else roberta_single.parameters()
+params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay, weight_decay=weight_decay)
   
   
 #optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0.01, eps=1e-6)
