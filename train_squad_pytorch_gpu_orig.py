@@ -263,6 +263,7 @@ def pad(list_of_tokens,
 
   
 def from_records(records, batch_size = 48, half=False, shuffle=True):
+    
     if half:
       float = torch.HalfTensor
     else:
@@ -841,15 +842,15 @@ t0 = time()
 X = 0
 for epoch in range(1, num_epochs + 1):
   for minibatch in accumulate(data, update_freq):
-    with torch.autograd.profiler.profile(use_cuda=True) as prof:
+      #with torch.autograd.profiler.profile(use_cuda=True) as prof:
       while True:
         replay_batch = False
         loss_sum = 0
         for inp, p_mask, start, end, unanswerable in minibatch:
-          (loss, ) = roberta(inp.to(device=device), 
-                       start.to(device=device), 
-                       end.to(device=device),
-                       unanswerable.to(device=device))
+          (loss, ) = roberta(inp, 
+                       start, 
+                       end,
+                       unanswerable)
           if num_cores > 1:
             loss = loss.sum()
           if update_freq > 1:
@@ -865,6 +866,7 @@ for epoch in range(1, num_epochs + 1):
           if optimizer.step is not default_optimizer_step:
             print("Overflowed, reducing loss scale and replaying batch.")
             optimizer.step()
+            optimizer.zero_grad()
             replay_batch = True
             break
           torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), 1.0)
@@ -886,7 +888,7 @@ for epoch in range(1, num_epochs + 1):
         #print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}, learning-rate={:.8f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0, optimizer.wrapped_optimizer.param_groups[-1]['lr']))
         print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}, learning-rate={:.8f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0, optimizer.param_groups[-1]['lr']))
                            
-    print(prof)
+    #print(prof.key_averages().table(sort_by="self_cpu_time_total"))
 
 torch.save({'model':roberta_single.state_dict(), 'args': roberta_single.args}, 'roberta.large/roberta_qa_squad_24.pt')
 
