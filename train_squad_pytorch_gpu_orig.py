@@ -10,7 +10,7 @@ import numpy as np
 from torch.nn import functional as F
 from torch.nn import CrossEntropyLoss
 from ranger import Ranger
-from ranger import Adam
+from ranger import AdamW
 import json
 from tokenizer.validate import validate
 from copy import deepcopy
@@ -535,7 +535,7 @@ class RobertaQA(torch.nn.Module):
         end_logits = end_logits.squeeze(-1)
 
 
-        outputs = (start_logits, end_logits)  # Keep mems, hidden states, attentions if there are in it
+        outputs = (start_logits, end_logits)
 
         if use_ans_class:
             # Predict answerability from the representation of CLS and START
@@ -627,7 +627,7 @@ class RobertaQAEmbed(torch.nn.Module):
         else:
             return features  # just the last layer's features
 
-    def forward(self, q=None, a=None, normalize=False, return_loss=False): 
+    def forward(self, q=None, a=None, normalize=False, return_loss=False, use_gpu=True): 
         
         if q and a:
           assert q.shape[0] == a.shape[0]
@@ -648,7 +648,7 @@ class RobertaQAEmbed(torch.nn.Module):
               raise Exception('Cannot calculate loss without both q and a')
             q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
             a_embed_norm = a_embed / a_embed.norm(dim=1)[:,None]
-            loss = -(torch.eye(q_hs.shape[0]) * log_softmax(torch.mm(q_embed_norm,a_embed_norm.t()) )).sum()
+            loss = -((torch.eye(q_hs.shape[0]).cuda() if use_gpu else torch.eye(q_hs.shape[0])) * log_softmax(torch.mm(q_embed_norm,a_embed_norm.t()) )).sum()
             outputs = (total_loss,)
 
         else:
@@ -744,6 +744,7 @@ update_freq = 2                       # 4  bs per device
 lr = 1.5e-5
 lr_flat_ratio = 0.06
 lr_rate_decay= 1  #0.908517
+fp16_opt_level = 'O1'
 
 fp16 = True
 class args:
@@ -763,10 +764,24 @@ assert effective_batch_size % update_freq == 0
 
 batch_size = effective_batch_size // update_freq
 
+params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay)  if lr_rate_decay < 1 else roberta_single.parameters()
+  
+  
+  
+#optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0.01, eps=1e-6)
+optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=0.01, eps=1e-6)
 
+if fp16:
+  #optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
+
+  try:
+    from apex import amp
+  except ImportError:
+    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+  roberta, optimizer = amp.initialize(roberta_single, optimizer, opt_level=fp16_opt_level)
 
 if num_cores > 1:
-  roberta = nn.DataParallel(roberta_single)
+  roberta = nn.DataParallel(roberta)
 {'model':roberta.state_dict(), 'args': roberta_single.args}
   
 print("Let's use", num_cores, "GPUs!")
@@ -787,16 +802,6 @@ if fp16:
   min_float = MIN_FLOAT16
   roberta.half()
   
-params = get_decayed_param_groups(roberta, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay)  if lr_rate_decay < 1 else roberta.parameters()
-  
-  
-  
-#optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0.01, eps=1e-6)
-optimizer = Adam(params, lr=lr, betas=(0.9,0.98), weight_decay=0.01, eps=1e-6)
-
-if fp16:
-  optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
-
 import random
 data = list((from_records('qa_records_squad', batch_size, half=fp16)))
 num_steps = len(data) * num_epochs // update_freq    
@@ -826,9 +831,14 @@ for epoch in range(1, num_epochs + 1):
                        unanswerable.to(device=device))
       if num_cores > 1:
         loss = loss.sum()
+      if update_freq > 1:
+        loss = loss / update_freq
       
       if fp16:
-        optimizer.backward(loss)
+        with amp.scale_loss(loss, optimizer) as scaled_loss:
+          scaled_loss.backward()
+        torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), 1.0)
+        # optimizer.backward(loss)
       else:
         loss.backward()
       
