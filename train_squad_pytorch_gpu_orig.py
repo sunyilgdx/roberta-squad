@@ -813,7 +813,6 @@ num_steps = len(data) * num_epochs // update_freq
 print('batch_size:  ',batch_size)
 print('number_steps:',num_steps)
 
-accumulated = 0
 loss_sum = 0.
 
 
@@ -822,54 +821,65 @@ scheduler = LinearAnnealingLRWithWarmUp(optimizer, num_steps, warmup_steps=int(n
 
 
 
+def accumulate(data,n):
+  data = iter(data)
+  while True:
+    bucket = []
+    for _ in range(n):
+      try:
+        e = next(data)
+        bucket.append(e)
+      except:
+        if len(bucket) > 0:
+            yield bucket
+        return
+    yield bucket
+    
 
 from time import time
 t0 = time()
 X = 0
 for epoch in range(1, num_epochs + 1):
-  for inp, p_mask, start, end, unanswerable in data:
+  for minibatch in accumulate(data, update_freq):
     with torch.autograd.profiler.profile(use_cuda=True) as prof:
-      accumulated += 1
-      update = accumulated >= update_freq
-      (loss, ) = roberta(inp.to(device=device), 
+      replay_batch = True
+      while replay_batch:
+        loss_sum = 0
+        for inp, p_mask, start, end, unanswerable in minibatch:
+          (loss, ) = roberta(inp.to(device=device), 
                        start.to(device=device), 
                        end.to(device=device),
                        unanswerable.to(device=device))
-      if num_cores > 1:
-        loss = loss.sum()
-      if update_freq > 1:
-        loss = loss / update_freq
-      
-      if fp16:
-        replay_batch = True
-        while replay_batch:
-            default_optimizer_step = optimizer.step
-
-            with amp.scale_loss(loss, optimizer) as scaled_loss:
-                scaled_loss.backward()
-        
-            # If Amp detects an overflow, it patches optimizer.step.  In other words, if optimizer.step
-            # was left unpatched, there was no overflow, and we don't need to replay.
-            if optimizer.step is default_optimizer_step:
-                replay_batch = False
-            else:
-                print("Overflowed, reducing loss scale and replaying batch.")
-
-        torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), 1.0)
-        # optimizer.backward(loss)
-      else:
-        loss.backward()
-      
-      loss_sum += loss            
-       
-      if update:
-        X += 1
+          if num_cores > 1:
+            loss = loss.sum()
+          if update_freq > 1:
+            loss = loss / update_freq
+            
+          default_optimizer_step = optimizer.step
+  
+          with amp.scale_loss(loss, optimizer) as scaled_loss:
+            scaled_loss.backward()
+  
+          # If Amp detects an overflow, it patches optimizer.step.  In other words, if optimizer.step
+          # was left unpatched, there was no overflow, and we don't need to replay.
+          if optimizer.step is default_optimizer_step:
+            replay_batch = False
+          else:
+            print("Overflowed, reducing loss scale and replaying batch.")
+            optimizer.step()
+            break
+          torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), 1.0)
+          loss_sum += loss
+          
+        if replay_batch:
+          continue
+  
         loss_sum /= num_cores
         #optimizer.clip_grad_norm(1.0)
-        
         optimizer.step()
         scheduler.step()
         optimizer.zero_grad()
+        break
 
       if (X-1) % log_steps == 0:
         t1 = time()
@@ -877,9 +887,6 @@ for epoch in range(1, num_epochs + 1):
         #print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}, learning-rate={:.8f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0, optimizer.wrapped_optimizer.param_groups[-1]['lr']))
         print('Loss={:.5f} Rate={:.2f} Remaining={:.2f}s Time elapsed={:.2f}, learning-rate={:.8f}'.format((loss_sum if isinstance(loss_sum,int) else loss.item())/num_cores,rate, (num_steps-X)/rate, t1-t0, optimizer.param_groups[-1]['lr']))
                            
-      if update:                
-        accumulated = 0
-        loss_sum = 0
     print(prof)
 
 torch.save({'model':roberta_single.state_dict(), 'args': roberta_single.args}, 'roberta.large/roberta_qa_squad_24.pt')
