@@ -727,19 +727,6 @@ def _compute_softmax(scores):
 # Model Init
 
 
-from time import time
-
-roberta_single = RobertaQA(use_ans_class=True, roberta_path=roberta_directory, checkpoint_file='model_new.pt', strict=False)
-
-use_gpu = torch.cuda.is_available() if use_gpu is None else use_gpu
-
-device = torch.device("cuda:0" if use_gpu else "cpu")
-
-
-roberta_single.to(device)
-  
-
-
 log_steps = 50
 num_epochs = 2
 max_seq_length = 512
@@ -761,13 +748,34 @@ class args:
   threshold_loss_scale=1
   min_loss_scale=1e-4
   
-  
-
+ 
 use_gpu = None
+
 
 assert effective_batch_size % update_freq == 0
 
 batch_size = effective_batch_size // update_freq
+
+
+
+
+from time import time
+
+roberta_single = RobertaQA(use_ans_class=True, roberta_path=roberta_directory, checkpoint_file='model_new.pt', strict=False)
+
+use_gpu = torch.cuda.is_available() if use_gpu is None else use_gpu
+
+device = torch.device("cuda:0" if use_gpu else "cpu")
+
+
+roberta_single.to(device)
+  
+
+
+
+
+
+
 
 params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay)  if lr_rate_decay < 1 else roberta_single.parameters()
   
