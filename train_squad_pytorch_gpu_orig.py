@@ -846,7 +846,7 @@ for epoch in range(1, num_epochs + 1):
             while replay_batch:
                 default_optimizer_step = optimizer.step
 
-                with amp_handle.scale_loss(loss, optimizer) as scaled_loss:
+                with amp.scale_loss(loss, optimizer) as scaled_loss:
                     scaled_loss.backward()
             
                 # If Amp detects an overflow, it patches optimizer.step.  In other words, if optimizer.step
