@@ -842,8 +842,8 @@ X = 0
 for epoch in range(1, num_epochs + 1):
   for minibatch in accumulate(data, update_freq):
     with torch.autograd.profiler.profile(use_cuda=True) as prof:
-      replay_batch = True
-      while replay_batch:
+      while True:
+        replay_batch = False
         loss_sum = 0
         for inp, p_mask, start, end, unanswerable in minibatch:
           (loss, ) = roberta(inp.to(device=device), 
@@ -862,11 +862,10 @@ for epoch in range(1, num_epochs + 1):
   
           # If Amp detects an overflow, it patches optimizer.step.  In other words, if optimizer.step
           # was left unpatched, there was no overflow, and we don't need to replay.
-          if optimizer.step is default_optimizer_step:
-            replay_batch = False
-          else:
+          if optimizer.step is not default_optimizer_step:
             print("Overflowed, reducing loss scale and replaying batch.")
             optimizer.step()
+            replay_batch = True
             break
           torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), 1.0)
           loss_sum += loss
