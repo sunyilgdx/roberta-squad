@@ -775,11 +775,14 @@ if not use_gpu:
 if fp16:
   max_float = MAX_FLOAT16
   min_float = MIN_FLOAT16
-  roberta_single.half()
+  #roberta_single.half()
   
 
 roberta_single.to(device)
   
+
+print("Let's use", num_cores, "GPUs!")
+
 
 
 
@@ -804,9 +807,6 @@ if num_cores > 1:
   roberta = nn.DataParallel(roberta)
 {'model':roberta.state_dict(), 'args': roberta_single.args}
   
-print("Let's use", num_cores, "GPUs!")
-
-
 import random
 data = list((from_records('qa_records_squad', batch_size, half=fp16)))
 num_steps = len(data) * num_epochs // update_freq    
@@ -827,7 +827,8 @@ from time import time
 t0 = time()
 X = 0
 for epoch in range(1, num_epochs + 1):
-    for inp, p_mask, start, end, unanswerable in data:
+  for inp, p_mask, start, end, unanswerable in data:
+    with torch.autograd.profiler.profile(use_cuda=True) as prof:
       accumulated += 1
       update = accumulated >= update_freq
       (loss, ) = roberta(inp.to(device=device), 
@@ -841,7 +842,20 @@ for epoch in range(1, num_epochs + 1):
       
       if fp16:
         with amp.scale_loss(loss, optimizer) as scaled_loss:
-          scaled_loss.backward()
+            replay_batch = True
+            while replay_batch:
+                default_optimizer_step = optimizer.step
+
+                with amp_handle.scale_loss(loss, optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            
+                # If Amp detects an overflow, it patches optimizer.step.  In other words, if optimizer.step
+                # was left unpatched, there was no overflow, and we don't need to replay.
+                if optimizer.step is default_optimizer_step:
+                    replay_batch = False
+                else:
+                    print("Overflowed, reducing loss scale and replaying batch.")
+
         torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), 1.0)
         # optimizer.backward(loss)
       else:
@@ -853,6 +867,7 @@ for epoch in range(1, num_epochs + 1):
         X += 1
         loss_sum /= num_cores
         #optimizer.clip_grad_norm(1.0)
+        
         optimizer.step()
         scheduler.step()
         optimizer.zero_grad()
@@ -866,7 +881,7 @@ for epoch in range(1, num_epochs + 1):
       if update:                
         accumulated = 0
         loss_sum = 0
-
+    print(prof)
 
 torch.save({'model':roberta_single.state_dict(), 'args': roberta_single.args}, 'roberta.large/roberta_qa_squad_24.pt')
 
