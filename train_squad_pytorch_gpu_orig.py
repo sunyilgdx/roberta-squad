@@ -768,11 +768,18 @@ use_gpu = torch.cuda.is_available() if use_gpu is None else use_gpu
 device = torch.device("cuda:0" if use_gpu else "cpu")
 
 
-roberta_single.to(device)
+
+if not use_gpu:
+  fp16 = False
+
+if fp16:
+  max_float = MAX_FLOAT16
+  min_float = MIN_FLOAT16
+  roberta.half()
   
 
-
-
+roberta_single.to(device)
+  
 
 
 
@@ -800,16 +807,6 @@ if num_cores > 1:
 print("Let's use", num_cores, "GPUs!")
 
 
-if not use_gpu:
-  fp16 = False
-
-
-
-if fp16:
-  max_float = MAX_FLOAT16
-  min_float = MIN_FLOAT16
-  roberta.half()
-  
 import random
 data = list((from_records('qa_records_squad', batch_size, half=fp16)))
 num_steps = len(data) * num_epochs // update_freq    
