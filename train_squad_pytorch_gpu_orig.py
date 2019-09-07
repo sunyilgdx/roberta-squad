@@ -668,24 +668,28 @@ class RobertaQAEmbed(torch.nn.Module):
         return outputs
 
 
-def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.908517):
+def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.908517, weight_decay=None):
   lr_factors = []
-  prefix = 'module.roberta.decoder.sentence_encoder.layers.'
-
+  prefix = 'roberta.decoder.sentence_encoder.layers.'
   for k, v in roberta.named_parameters():
-      factor = 1
-      if 'sentence_encoder.layers' in k:
+      param = {
+          'params': v,
+      }
+	  if lr_rate_decay and lr_rate_decay != 1:
+        factor = 1
+        if 'sentence_encoder.layers' in k:
           layer = int(k[len(prefix):].split('.')[0])
           factor = lr_rate_decay**(num_layers-layer)
 
-      elif 'embed_tokens.weight' in k or 'embed_positions' in k:
+        elif 'embed_tokens.weight' in k or 'embed_positions' in k:
           layer = 0
           factor = lr_rate_decay**(num_layers-layer)
 
-      lr_factors.append({
-          'params': v,
-          'lr': lr * factor,
-      })
+        param['lr'] = lr * factor
+      if weight_decay and weight_decay != 0:
+        param['weight_decay'] = 0.0 if 'layer_norm' in k else weight_decay
+        
+      lr_factors.append(param)
   return lr_factors
       
       
@@ -737,6 +741,7 @@ update_freq = 2                       # 4  bs per device
 lr = 1.5e-5
 lr_flat_ratio = 0.06
 lr_rate_decay= 1  #0.908517
+weight_decay = 0.01
 fp16_opt_level = 'O1'
 
 fp16 = True
@@ -788,12 +793,11 @@ print("Let's use", num_cores, "GPUs!")
 
 
 
-params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay)  if lr_rate_decay < 1 else roberta_single.parameters()
-  
+params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay, weight_decay=weight_decay)  if lr_rate_decay < 1 else roberta_single.parameters()
   
   
 #optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0.01, eps=1e-6)
-optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=0.01, eps=1e-6)
+optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
 
 if fp16:
   #optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
@@ -881,7 +885,7 @@ for epoch in range(1, num_epochs + 1):
         scheduler.step()
         optimizer.zero_grad()
         break
-
+      X += 1
       if (X-1) % log_steps == 0:
         t1 = time()
         rate = X/(t1-t0)
