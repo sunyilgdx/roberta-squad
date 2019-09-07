@@ -775,7 +775,7 @@ if not use_gpu:
 if fp16:
   max_float = MAX_FLOAT16
   min_float = MIN_FLOAT16
-  roberta.half()
+  roberta_single.half()
   
 
 roberta_single.to(device)
