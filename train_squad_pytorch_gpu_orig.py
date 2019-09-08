@@ -786,11 +786,6 @@ roberta_single.to(device)
 print("Let's use", num_cores, "GPUs!")
 
 
-try:
-    from apex import amp 
-    from apex.optimizers import FusedAdam, FP16_Optimizer
-except ImportError:
-    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
 
 
 
@@ -798,19 +793,18 @@ params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_la
   
   
 #optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.9,0.98), weight_decay=weight_decay, eps=1e-6)
-#optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
-optimizer = FusedAdam(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
+optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
+#optimizer = apex.optimizers.FusedAdam(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
 # pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 
 if fp16:
   #optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
 
-  
-  roberta.cuda()
-  
-  optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
-  
-  #roberta, optimizer = amp.initialize(roberta_single, optimizer, opt_level=fp16_opt_level)
+  try:
+    from apex import amp
+  except ImportError:
+    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+  roberta, optimizer = amp.initialize(roberta_single, optimizer, opt_level=fp16_opt_level)
 
 if num_cores > 1:
   roberta = nn.DataParallel(roberta)
