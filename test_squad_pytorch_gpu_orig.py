@@ -768,7 +768,7 @@ def _compute_softmax(scores):
 
 from time import time
 
-roberta_single = RobertaQA(use_ans_class=True, roberta_path=roberta_directory, checkpoint_file='roberta_qa_squad_24.pt', strict=True)
+roberta_single = RobertaQA(use_ans_class=True, roberta_path=roberta_directory, checkpoint_file='roberta_qa_squad_24_ranger.pt', strict=True)
 
 
 
@@ -858,7 +858,8 @@ def handle_prediction_by_qid(self,
                              n_best_size = 5,
                              threshold = -1.5,
                              max_answer_length = 48,
-                             debug = False):
+                             debug = False,
+                             wrong_only = False):
   global prelim_predictions
   use_ans_class = self.use_ans_class
   all_predictions = {}
@@ -1011,10 +1012,11 @@ def handle_prediction_by_qid(self,
     if debug:
       ans = best_non_null_entry.text if best_null_score < threshold else '*No answer*'
       truth = q['answer_text'] or '*No answer*'
-      print('Q:', q['question'])
-      print('A:', ans, '(',best_null_score,')',  '[',best_score_no_ans,']', )
-      print('Truth:', truth)
-      print('')
+      if (not wrong_only or ans != truth):
+        print('Q:', q['question'])
+        print('A:', ans, '(',best_null_score,')',  '[',best_score_no_ans,']', )
+        print('Truth:', truth)
+        print('')
       score += compute_f1(truth, ans)
 
     assert len(nbest_json) >= 1
@@ -1031,7 +1033,7 @@ def handle_prediction_by_qid(self,
   
   return nbest_json, all_predictions, scores_diff_json
 
-nbest_json, all_predictions, scores_diff_json = handle_prediction_by_qid(roberta_single, prediction_by_qid, debug=False)
+nbest_json, all_predictions, scores_diff_json = handle_prediction_by_qid(roberta_single, prediction_by_qid, debug=False, wrong_only=True)
 
 
 
