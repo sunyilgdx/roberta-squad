@@ -26,10 +26,10 @@ roberta_directory = './roberta.large'
 
 
 max_seq_length   = 512
-max_query_length = 192
-doc_stride       = 192
+max_query_length = 128
+doc_stride       = 128
 
-default_choices = ['Yes','No']
+default_choices = []
 get_tokenizer = lambda: RobertaTokenizer(config_dir=roberta_directory)
 
 tk = tokenizer =  get_tokenizer()
@@ -87,12 +87,7 @@ def gen(paths):
             if '\1' in q['question']:
                 q['question'] = q['question'].replace('\1', '___')
         yield i,context, qas
-        
-        
-        
-def ids_equal_no_ans(inp,start,end):
-  return inp[start_position] == 440 and  inp[end_position] == 1948
-        
+         
 import marshal
 def work(ss, debug=False):
     global unique_index, \
@@ -107,7 +102,7 @@ def work(ss, debug=False):
      is_training, \
      return_feature = ss
     
-    rss = tokenizer.merge_cq(context.replace('<eop> ','\n'), 
+    rss = tokenizer.merge_cq(context, 
                              qas,
                              max_seq_length = max_seq_length,
                              max_query_length = max_query_length,
@@ -437,7 +432,7 @@ class PoolerAnswerClass(nn.Module):
         self.dense_0 = nn.Linear(hidden_size, hidden_size)
         self.activation = nn.Tanh() #Mish() # nn.Tanh()
         #self.dropout = nn.Dropout(p=dropout)
-        self.dense_1 = nn.Linear(hidden_size, 1, bias=False)
+        self.dense_1 = nn.Linear(hidden_size, 1)
 
     def forward(self, hidden_states, cls_index=None):
         """
@@ -797,9 +792,9 @@ print("Let's use", num_cores, "GPUs!")
 params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay, weight_decay=weight_decay)
   
   
-optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.9,0.98), weight_decay=weight_decay, eps=1e-6)
-#optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-8)
-#optimizer = apex.optimizers.FusedAdam(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-8)
+#optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.9,0.98), weight_decay=weight_decay, eps=1e-6)
+#optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
+optimizer = apex.optimizers.FusedAdam(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
 # pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 
 if fp16:
@@ -876,7 +871,7 @@ for epoch in range(1, num_epochs + 1):
             optimizer.zero_grad()
             replay_batch = True
             break
-          torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), 1.0)
+          #torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), 1.0)
           loss_sum += loss
           
         if replay_batch:

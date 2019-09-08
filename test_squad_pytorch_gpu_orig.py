@@ -9,8 +9,6 @@ from glob import glob
 import numpy as np
 from torch.nn import functional as F
 from torch.nn import CrossEntropyLoss
-from ranger import Ranger
-from ranger import Adam
 import json
 from tokenizer.validate import validate
 from copy import deepcopy
@@ -29,7 +27,7 @@ max_seq_length   = 512
 max_query_length = 192
 doc_stride       = 192
 
-default_choices = ['Yes','No']
+default_choices = []
 get_tokenizer = lambda: RobertaTokenizer(config_dir=roberta_directory)
 
 tk = tokenizer =  get_tokenizer()
@@ -90,9 +88,6 @@ def gen(paths):
         
         
         
-def ids_equal_no_ans(inp,start,end):
-  return inp[start_position] == 440 and  inp[end_position] == 1948
-        
 import marshal
 def work(ss, debug=False):
     global unique_index, \
@@ -107,7 +102,7 @@ def work(ss, debug=False):
      is_training, \
      return_feature = ss
     
-    rss = tokenizer.merge_cq(context.replace('<eop> ','\n'), 
+    rss = tokenizer.merge_cq(context, 
                              qas,
                              max_seq_length = max_seq_length,
                              max_query_length = max_query_length,
