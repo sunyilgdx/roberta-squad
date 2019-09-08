@@ -289,6 +289,52 @@ def from_records(records, batch_size = 48, half=False, shuffle=True):
 
         yield inp, p_mask, start, end, unanswerable
 
+from torch.utils.data.dataset import Dataset
+
+class MyDataset(Dataset):
+    def __init__(self, records):
+        """
+        Args:
+            records (string): Path to the csv file with annotations.
+        """
+	  
+		fn_style = isinstance(records,str)
+		if fn_style:
+		  def from_file(fn):
+			with open(fn, 'rb') as f:
+				while True:
+					try:
+						record = fread(f)
+						yield record
+					except EOFError:
+						break
+		  records = from_file(records)
+
+		records = list(records)
+		  
+		prepared_records = []
+		for record_samples in chunks(records,batch_size):
+			uid, inp, start, end, p_mask, unanswerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
+			start = start
+			end = end
+			unanswerable = unanswerable
+			inp = pad(inp,dtype=np.long)
+			p_mask = pad(p_mask,dtype=np.float32)
+
+			for e in zip(inp, p_mask, start, end, unanswerable):
+			    prepared_records.append(e)
+		self.prepared_records = prepared_records
+
+    def __len__(self):
+        return len(self.prepared_records)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+		e = self.prepared_records[idx]
+
+        return e
+
 
 # Train Utilities
 
@@ -431,7 +477,7 @@ class PoolerAnswerClass(nn.Module):
         self.dense_0 = nn.Linear(hidden_size, hidden_size)
         self.activation = nn.Tanh() #Mish() # nn.Tanh()
         #self.dropout = nn.Dropout(p=dropout)
-        self.dense_1 = nn.Linear(hidden_size, 1, bias=False)
+        self.dense_1 = nn.Linear(hidden_size, 1)
 
     def forward(self, hidden_states, cls_index=None):
         """
