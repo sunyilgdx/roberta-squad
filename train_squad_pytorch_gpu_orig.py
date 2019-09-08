@@ -725,7 +725,32 @@ def _compute_softmax(scores):
 
 
 # Model Init
-	
+
+
+import torch
+import argparse
+import os
+from apex import amp
+
+from apex.parallel import DistributedDataParallel
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument("--local_rank", default=0, type=int)
+args = parser.parse_args()
+
+
+args.distributed = False
+if 'WORLD_SIZE' in os.environ:
+    args.distributed = int(os.environ['WORLD_SIZE']) > 1
+
+
+
+
+
+
+
+
 torch.backends.cudnn.benchmark = True
 
 log_steps = 50
@@ -764,7 +789,7 @@ batch_size = effective_batch_size // update_freq
 from time import time
 
 roberta_single = RobertaQA(use_ans_class=True, roberta_path=roberta_directory, checkpoint_file='model_new.pt', strict=False)
-
+roberta_single.cuda()
 use_gpu = torch.cuda.is_available() if use_gpu is None else use_gpu
 
 device = torch.device("cuda:0" if use_gpu else "cpu")
@@ -787,6 +812,11 @@ print("Let's use", num_cores, "GPUs!")
 
 
 
+try:
+    from apex import amp
+    from apex.parallel import DistributedDataParallel
+except ImportError:
+    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
 
 
 params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay, weight_decay=weight_decay)
@@ -800,14 +830,10 @@ optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, ep
 if fp16:
   #optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
 
-  try:
-    from apex import amp
-  except ImportError:
-    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
   roberta, optimizer = amp.initialize(roberta_single, optimizer, opt_level=fp16_opt_level)
 
 if num_cores > 1:
-  roberta = nn.DataParallel(roberta)
+  roberta = DistributedDataParallel(roberta)
 {'model':roberta.state_dict(), 'args': roberta_single.args}
   
 import random
