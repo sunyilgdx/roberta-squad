@@ -786,6 +786,10 @@ roberta_single.to(device)
 print("Let's use", num_cores, "GPUs!")
 
 
+try:
+    from apex import amp
+ xcept ImportError:
+    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
 
 
 
@@ -800,10 +804,6 @@ optimizer = apex.optimizers.FusedAdam(params, lr=lr, betas=(0.9,0.98), weight_de
 if fp16:
   #optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
 
-  try:
-    from apex import amp
-  except ImportError:
-    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
   roberta, optimizer = amp.initialize(roberta_single, optimizer, opt_level=fp16_opt_level)
 
 if num_cores > 1:
