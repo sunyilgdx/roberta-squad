@@ -687,7 +687,7 @@ def get_decayed_param_groups(roberta, num_layers, lr=3e-5, lr_rate_decay=0.90851
 
         param['lr'] = lr * factor
       if weight_decay and weight_decay != 0:
-        param['weight_decay'] = 0.0 if 'layer_norm' in k else weight_decay
+        param['weight_decay'] = 0.0 if 'layer_norm' in k or 'bias' in k else weight_decay
         
       lr_factors.append(param)
   return lr_factors
@@ -730,7 +730,8 @@ def _compute_softmax(scores):
 
 
 # Model Init
-
+	
+torch.backends.cudnn.benchmark = True
 
 log_steps = 50
 num_epochs = 2
@@ -742,7 +743,7 @@ lr = 1.5e-5
 lr_flat_ratio = 0.06
 lr_rate_decay= 1  #0.908517
 weight_decay = 0.01
-fp16_opt_level = 'O1'
+fp16_opt_level = 'O2'
 
 fp16 = True
 class args:
@@ -796,8 +797,10 @@ print("Let's use", num_cores, "GPUs!")
 params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay, weight_decay=weight_decay)
   
   
-#optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.95,0.999), weight_decay=0.01, eps=1e-6)
-optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
+optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.9,0.98), weight_decay=weight_decay, eps=1e-6)
+#optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-8)
+#optimizer = apex.optimizers.FusedAdam(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-8)
+# pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 
 if fp16:
   #optimizer = MemoryEfficientFP16Optimizer(args, params, optimizer)
