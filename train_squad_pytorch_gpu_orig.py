@@ -477,7 +477,7 @@ class PoolerAnswerClass(nn.Module):
     def __init__(self, hidden_size):
         super(PoolerAnswerClass, self).__init__()
         self.dense_0 = nn.Linear(hidden_size, hidden_size)
-        self.activation = nn.Tanh() #Mish() # nn.Tanh()
+        self.activation = Mish() #Mish() # nn.Tanh()
         #self.dropout = nn.Dropout(p=dropout)
         self.dense_1 = nn.Linear(hidden_size, 1)
 
@@ -867,9 +867,9 @@ except ImportError:
 params = get_decayed_param_groups(roberta_single, roberta_single.args.encoder_layers, lr=lr, lr_rate_decay=lr_rate_decay, weight_decay=weight_decay)
   
   
-#optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.9,0.98), weight_decay=weight_decay, eps=1e-6)
+optimizer = Ranger(params, lr=lr, N_sma_threshhold=5, betas=(.9,0.98), weight_decay=weight_decay, eps=1e-6)
 #optimizer = AdamW(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
-optimizer = FusedAdam(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
+#optimizer = FusedAdam(params, lr=lr, betas=(0.9,0.98), weight_decay=weight_decay, eps=1e-6)
 # pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 
 if fp16:
@@ -963,7 +963,7 @@ for epoch in range(1, num_epochs + 1):
                            
     #print(prof.key_averages().table(sort_by="self_cpu_time_total"))
 
-torch.save({'model':roberta_single.state_dict(), 'args': roberta_single.args}, 'roberta.large/roberta_qa_squad_24.pt')
+torch.save({'model':roberta_single.state_dict(), 'args': roberta_single.args}, 'roberta.large/roberta_qa_squad_24_ranger.pt')
 
 
 
