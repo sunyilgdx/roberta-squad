@@ -731,6 +731,8 @@ import torch
 import argparse
 import os
 from apex import amp
+import torch.distributed as dist
+torch.distributed.init_process_group(backend="nccl")
 
 from apex.parallel import DistributedDataParallel
 
@@ -743,9 +745,6 @@ args = parser.parse_args()
 args.distributed = False
 if 'WORLD_SIZE' in os.environ:
     args.distributed = int(os.environ['WORLD_SIZE']) > 1
-
-
-
 
 
 
@@ -833,7 +832,7 @@ if fp16:
   roberta, optimizer = amp.initialize(roberta_single, optimizer, opt_level=fp16_opt_level)
 
 if num_cores > 1:
-  roberta = DistributedDataParallel(roberta)
+  roberta = nn.DataParallel(roberta)
 {'model':roberta.state_dict(), 'args': roberta_single.args}
   
 import random
@@ -875,10 +874,10 @@ for epoch in range(1, num_epochs + 1):
         replay_batch = False
         loss_sum = 0
         for inp, p_mask, start, end, unanswerable in minibatch:
-          (loss, ) = roberta(inp, 
-                       start, 
-                       end,
-                       unanswerable)
+          (loss, ) = roberta(inp.cuda(), 
+                       start.cuda(), 
+                       end.cuda(),
+                       unanswerable.cuda())
           if num_cores > 1:
             loss = loss.sum()
           if update_freq > 1:
