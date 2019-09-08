@@ -731,22 +731,20 @@ import torch
 import argparse
 import os
 from apex import amp
+'''
 import torch.distributed as dist
 torch.distributed.init_process_group(backend="nccl")
 
 from apex.parallel import DistributedDataParallel
 
 parser = argparse.ArgumentParser()
-
 parser.add_argument("--local_rank", default=0, type=int)
 args = parser.parse_args()
-
-
 args.distributed = False
 if 'WORLD_SIZE' in os.environ:
     args.distributed = int(os.environ['WORLD_SIZE']) > 1
 
-
+'''
 
 
 
