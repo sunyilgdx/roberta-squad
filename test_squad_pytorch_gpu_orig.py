@@ -297,33 +297,33 @@ class MyDataset(Dataset):
         Args:
             records (string): Path to the csv file with annotations.
         """
-	  
-		fn_style = isinstance(records,str)
-		if fn_style:
-		  def from_file(fn):
-			with open(fn, 'rb') as f:
-				while True:
-					try:
-						record = fread(f)
-						yield record
-					except EOFError:
-						break
-		  records = from_file(records)
+      
+        fn_style = isinstance(records,str)
+        if fn_style:
+          def from_file(fn):
+            with open(fn, 'rb') as f:
+                while True:
+                    try:
+                        record = fread(f)
+                        yield record
+                    except EOFError:
+                        break
+          records = from_file(records)
 
-		records = list(records)
-		  
-		prepared_records = []
-		for record_samples in chunks(records,batch_size):
-			uid, inp, start, end, p_mask, unanswerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
-			start = start
-			end = end
-			unanswerable = unanswerable
-			inp = pad(inp,dtype=np.long)
-			p_mask = pad(p_mask,dtype=np.float32)
+        records = list(records)
+          
+        prepared_records = []
+        for record_samples in chunks(records,batch_size):
+            uid, inp, start, end, p_mask, unanswerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
+            start = start
+            end = end
+            unanswerable = unanswerable
+            inp = pad(inp,dtype=np.long)
+            p_mask = pad(p_mask,dtype=np.float32)
 
-			for e in zip(inp, p_mask, start, end, unanswerable):
-			    prepared_records.append(e)
-		self.prepared_records = prepared_records
+            for e in zip(inp, p_mask, start, end, unanswerable):
+                prepared_records.append(e)
+        self.prepared_records = prepared_records
 
     def __len__(self):
         return len(self.prepared_records)
@@ -331,7 +331,7 @@ class MyDataset(Dataset):
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
-		e = self.prepared_records[idx]
+        e = self.prepared_records[idx]
 
         return e
 
