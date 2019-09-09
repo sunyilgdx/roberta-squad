@@ -420,7 +420,7 @@ def handle_prediction_by_qid(self,
                              debug = False,
                              wrong_only = False):
   global prelim_predictions
-  use_ans_class = self.use_ans_class
+  use_ans_class = True
   all_predictions = {}
   scores_diff_json = {}
   score = 0
