@@ -401,7 +401,7 @@ prediction_by_qid = {}
 with torch.no_grad():
   for e, rs in tqdm(batches):
     inp, p_mask, start, end, _ = e
-    result_tuples = roberta(inp.to(device=device))
+    result_tuples, _ = roberta(inp.to(device=device))
     
     for result, r in zip(zip(*result_tuples), rs):
       qid = r.qid
@@ -440,7 +440,7 @@ def handle_prediction_by_qid(self,
       sub_prelim_predictions = []
 
       if use_ans_class:
-        (start_top_log_probs, end_top_log_probs, cls_logits), _ = result
+        start_top_log_probs, end_top_log_probs, cls_logits = result
         cur_null_score = cls_logits.tolist()
         
       else:
