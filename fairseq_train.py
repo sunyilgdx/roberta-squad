@@ -32,7 +32,7 @@ import re
 import types
 
 import torch.optim
-from torch.optim import FairseqOptimizer, register_optimizer
+from torch.optim.fairseq_optimizer import FairseqOptimizer, register_optimizer
 from ranger import Ranger
 
 @register_optimizer('ranger')
@@ -46,9 +46,9 @@ class FairseqRanger(FairseqOptimizer):
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
         # fmt: off
-        parser.add_argument('--adam-betas', default='(0.9, 0.999)', metavar='B',
+        parser.add_argument('--adam-betas', default='(0.95, 0.999)', metavar='B',
                             help='betas for Adam optimizer')
-        parser.add_argument('--adam-eps', type=float, default=1e-8, metavar='D',
+        parser.add_argument('--adam-eps', type=float, default=1e-5, metavar='D',
                             help='epsilon for Adam optimizer')
         parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                             help='weight decay')
