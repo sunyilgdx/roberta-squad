@@ -761,7 +761,7 @@ class SQuAD2Task(FairseqTask):
                     'nsentences': NumSamplesDataset(),
                     'ntokens': NumelDataset(tokens, reduce=True),
                 },
-                sizes=[lengths],
+                sizes=[len(lengths)],
             ),
             sort_order=[
                 shuffle,
@@ -804,7 +804,7 @@ class SQuAD2Criterion(FairseqCriterion):
         start_positions = sample['starts']
         end_positions = sample['ends']
         unanswerable = sample['unanswerables']
-        
+        print(start_positions)
         
         (start_logits, end_logits, cls_logits), extra = model(tokens)
         start_logits = start_logits.squeeze(-1)
