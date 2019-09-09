@@ -643,8 +643,8 @@ class RobertaQAEncoder(FairseqDecoder):
             apply_bert_init=True,
             activation_fn=args.activation_fn,
         )
-        self.span_logits =  nn.Linear(args.hidden_size, 2)
-        self.answer_class = PoolerAnswerClass(args.hidden_size)
+        self.span_logits =  nn.Linear(args.encoder_embed_dim, 2)
+        self.answer_class = PoolerAnswerClass(args.encoder_embed_dim)
 
     def forward(self, src_tokens, features_only=False, return_all_hiddens=False, **unused):
         x, extra = self.extract_features(src_tokens, return_all_hiddens)
