@@ -801,9 +801,15 @@ class SQuAD2Criterion(FairseqCriterion):
     def forward(self, model, sample, reduce=True):
         # compute loss and accuracy
         tokens = sample['tokens']
-        unanswerable = sample['unanswerables']
         start_positions = sample['starts']
         end_positions = sample['ends']
+        unanswerable = sample['unanswerables']
+        
+        print(tokens.shape)
+        print(start_positions.shape)
+        print(end_positions.shape)
+        print(unanswerable.shape)
+        
         
         (start_logits, end_logits, cls_logits), extra = model(tokens)
         
