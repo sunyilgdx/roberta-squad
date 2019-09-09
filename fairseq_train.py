@@ -740,7 +740,7 @@ class SQuAD2Task(FairseqTask):
             unanswerables.append(unanswerable)
             
         
-        tokens = ListDataset(tokens, lengths)
+        tokens = ListDataset(tokens, np.array(lengths))
         starts = ListDataset(starts, [1]*len(starts))
         ends = ListDataset(ends, [1]*len(ends))
         unanswerables = ListDataset(unanswerables, [1]*len(unanswerables))
@@ -800,10 +800,10 @@ class SQuAD2Criterion(FairseqCriterion):
 
     def forward(self, model, sample, reduce=True):
         # compute loss and accuracy
-        tokens = sample['tokens']
-        unanswerable = sample['unanswerables']
-        start_positions = sample['starts']
-        end_positions = sample['ends']
+        tokens = np.concatenate(sample['tokens'], axis=0)
+        unanswerable = np.array(sample['unanswerables'])
+        start_positions = np.array(sample['starts'])
+        end_positions = np.array(sample['ends'])
         
         (start_logits, end_logits, cls_logits), extra = model(tokens)
         
