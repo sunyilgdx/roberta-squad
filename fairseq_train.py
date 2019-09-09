@@ -427,6 +427,25 @@ def pad(list_of_tokens,
 
 from torch.utils.data.dataset import Dataset
 
+
+def chunks(l, n):
+    if type(l) == type((e for e in range(1))):
+        it = iter(l)
+        while True:
+            out = []
+            try:
+                for _ in range(n):
+                    out.append(next(it))
+            except StopIteration:
+                yield out
+                break
+
+            yield out
+    else:
+    
+        for i in range(0, len(l), n):
+            yield l[i:i + n]
+
 def from_records(records):
     """
     Args:
@@ -448,7 +467,7 @@ def from_records(records):
     records = list(records)
       
     prepared_records = []
-    for record_samples in chunks(records,batch_size):
+    for uid, inp, start, end, p_mask, unanswerable in chunks(records,48):
         uid, inp, start, end, p_mask, unanswerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
         start = start
         end = end
@@ -727,9 +746,9 @@ class SQuAD2Task(FairseqTask):
         unanswerables = ListDataset(unanswerables, [1]*len(unanswerables))
 
 
-        print('| loaded {} batches from: {}'.format(len(dataset), path))
+        print('| loaded {} batches from: {}'.format(len(lengths), path))
 
-        shuffle = np.random.permutation(len(dataset))
+        shuffle = np.random.permutation(len(lengths))
 
         self.datasets[split] = SortDataset(
             NestedDictionaryDataset(
