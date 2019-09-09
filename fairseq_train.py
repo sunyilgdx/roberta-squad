@@ -740,10 +740,10 @@ class SQuAD2Task(FairseqTask):
             unanswerables.append(unanswerable)
             
         
-        tokens = BaseWrapperDataset(tokens, np.array(lengths))
-        starts = BaseWrapperDataset(starts, [1]*len(starts))
-        ends = BaseWrapperDataset(ends, [1]*len(ends))
-        unanswerables = BaseWrapperDataset(unanswerables, [1]*len(unanswerables))
+        tokens = BaseWrapperDataset(tokens)
+        starts = BaseWrapperDataset(starts)
+        ends = BaseWrapperDataset(ends)
+        unanswerables = BaseWrapperDataset(unanswerables)
 
 
         print('| loaded {} batches from: {}'.format(len(lengths), path))
