@@ -467,7 +467,7 @@ def from_records(records):
     records = list(records)
       
     prepared_records = []
-    for uid, inp, start, end, p_mask, unanswerable in chunks(records,48):
+    for record_samples in chunks(records,48):
         uid, inp, start, end, p_mask, unanswerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
         start = start
         end = end
