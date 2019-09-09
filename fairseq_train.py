@@ -196,7 +196,7 @@ class Trainer(object):
                     if utils.has_parameters(self.get_criterion()):
                         self.get_criterion().load_state_dict(state['criterion'], strict=False)
                 except:
-                    raise Exception('version is %s'%sys.version_info)
+                    raise Exception('version is %s'%(sys.version_info, ))
 
             extra_state = state['extra_state']
             self._optim_history = state['optimizer_history']
