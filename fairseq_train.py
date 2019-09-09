@@ -1053,8 +1053,6 @@ class RobertaQAModel(FairseqLanguageModel):
         # We follow BERT's random weight initialization
         self.apply(init_bert_params)
 
-        self.qa_heads = None
-
 
     @staticmethod
     def add_args(parser):
@@ -1105,8 +1103,6 @@ class RobertaQAModel(FairseqLanguageModel):
 
         x, extra = self.decoder(src_tokens, features_only, return_all_hiddens, **kwargs)
 
-        if not features_only:
-          x = self.qa_heads(x)
 
         return x, extra
 
