@@ -71,7 +71,11 @@ class FairseqRanger(FairseqOptimizer):
 
 
 
-def get_decayed_param_groups(named_parameters, num_layers=None, lr=3e-5, lr_rate_decay=0.908517, weight_decay=None):
+def get_decayed_param_groups(named_parameters, 
+                             num_layers=None, 
+                             lr=3e-5, 
+                             lr_rate_decay=1, #0.908517, 
+                             weight_decay=None):
   lr_factors = []
   for k, v in named_parameters:
       if not v.requires_grad:
@@ -82,7 +86,7 @@ def get_decayed_param_groups(named_parameters, num_layers=None, lr=3e-5, lr_rate
       if lr_rate_decay and lr_rate_decay != 1:
         factor = 1
         if 'sentence_encoder.layers' in k:
-          layer = re.search(r'.layers.(\d+)',k)
+          layer = int(re.search(r'.layers.(\d+)',k).group(1))
           factor = lr_rate_decay**(num_layers-layer)
 
         elif 'embed_tokens.weight' in k or 'embed_positions' in k:
