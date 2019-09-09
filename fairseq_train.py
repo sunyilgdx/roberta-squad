@@ -32,7 +32,7 @@ import re
 import types
 
 import torch.optim
-from fairseq.optim.fairseq_optimizer import FairseqOptimizer, register_optimizer
+from fairseq.optim import FairseqOptimizer, register_optimizer
 from ranger import Ranger
 
 @register_optimizer('ranger')
