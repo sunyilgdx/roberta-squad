@@ -327,8 +327,8 @@ def _compute_softmax(scores):
 
 from fairseq_train import RobertaQAModel
 from time import time
-
-roberta_single = RobertaQAModel.from_pretrained(roberta_directory, checkpoint_file='model_qa.pt', strict=True)
+roberta_directory = './roberta.large'
+roberta_single = RobertaQAModel.from_pretrained(roberta_directory, checkpoint_file='model_qa.pt', strict=True).model
 
 
 
@@ -377,8 +377,6 @@ if not use_gpu:
 roberta.to(device)
 
 if fp16:
-  max_float = MAX_FLOAT16
-  min_float = MIN_FLOAT16
   roberta.half()
   
 roberta.eval()
@@ -403,7 +401,7 @@ prediction_by_qid = {}
 with torch.no_grad():
   for e, rs in tqdm(batches):
     inp, p_mask, start, end, _ = e
-    result_tuples = roberta(inp.to(device=device), p_mask.to(device=device))
+    result_tuples = roberta(inp.to(device=device))
     
     for result, r in zip(zip(*result_tuples), rs):
       qid = r.qid
@@ -442,7 +440,7 @@ def handle_prediction_by_qid(self,
       sub_prelim_predictions = []
 
       if use_ans_class:
-        start_top_log_probs, end_top_log_probs, cls_logits = result
+        (start_top_log_probs, end_top_log_probs, cls_logits), _ = result
         cur_null_score = cls_logits.tolist()
         
       else:
