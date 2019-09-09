@@ -761,7 +761,7 @@ class SQuAD2Task(FairseqTask):
                     'nsentences': NumSamplesDataset(),
                     'ntokens': NumelDataset(tokens, reduce=True),
                 },
-                sizes=[len(lengths)],
+                sizes=[lengths],
             ),
             sort_order=[
                 shuffle,
