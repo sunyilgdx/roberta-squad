@@ -1388,8 +1388,6 @@ class SQuAD2Criterion(FairseqCriterion):
         
         total_loss += cls_loss * 0.5
 
-        print(total_loss)
-
 
         sample_size = tokens.size(0) 
         logging_output = {
