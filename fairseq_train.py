@@ -695,7 +695,7 @@ def roberta_large_architecture(args):
 
 
 
-
+from fairseq.data import BaseWrapperDataset
 @register_task('squad2')
 class SQuAD2Task(FairseqTask):
     """Task for training masked language models (e.g., BERT, RoBERTa)."""
@@ -740,10 +740,10 @@ class SQuAD2Task(FairseqTask):
             unanswerables.append(unanswerable)
             
         
-        tokens = ListDataset(tokens, np.array(lengths))
-        starts = ListDataset(starts, [1]*len(starts))
-        ends = ListDataset(ends, [1]*len(ends))
-        unanswerables = ListDataset(unanswerables, [1]*len(unanswerables))
+        tokens = BaseWrapperDataset(tokens, np.array(lengths))
+        starts = BaseWrapperDataset(starts, [1]*len(starts))
+        ends = BaseWrapperDataset(ends, [1]*len(ends))
+        unanswerables = BaseWrapperDataset(unanswerables, [1]*len(unanswerables))
 
 
         print('| loaded {} batches from: {}'.format(len(lengths), path))
@@ -800,7 +800,7 @@ class SQuAD2Criterion(FairseqCriterion):
 
     def forward(self, model, sample, reduce=True):
         # compute loss and accuracy
-        tokens = torch.stack(sample['tokens'],axis=0)
+        tokens = sample['tokens']
         unanswerable = sample['unanswerables']
         start_positions = sample['starts']
         end_positions = sample['ends']
