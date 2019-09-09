@@ -472,8 +472,8 @@ def from_records(records):
         start = start
         end = end
         unanswerable = unanswerable
-        inp = pad(inp,dtype=np.long)
-        p_mask = pad(p_mask,dtype=np.float32)
+        inp = pad(inp,dtype=np.long, torch_tensor=torch.LongTensor)
+        p_mask = pad(p_mask,dtype=np.float32,dtype=np.float32, torch_tensor=torch.FloatTensor)
 
         for e in zip(inp, p_mask, start, end, unanswerable):
             yield e
@@ -800,10 +800,10 @@ class SQuAD2Criterion(FairseqCriterion):
 
     def forward(self, model, sample, reduce=True):
         # compute loss and accuracy
-        tokens = np.concatenate(sample['tokens'], axis=0)
-        unanswerable = np.array(sample['unanswerables'])
-        start_positions = np.array(sample['starts'])
-        end_positions = np.array(sample['ends'])
+        tokens = sample['tokens']
+        unanswerable = sample['unanswerables']
+        start_positions = sample['starts']
+        end_positions = sample['ends']
         
         (start_logits, end_logits, cls_logits), extra = model(tokens)
         
