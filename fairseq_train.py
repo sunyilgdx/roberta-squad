@@ -800,7 +800,7 @@ class SQuAD2Criterion(FairseqCriterion):
 
     def forward(self, model, sample, reduce=True):
         # compute loss and accuracy
-        tokens = sample['tokens']
+        tokens = torch.stack(sample['tokens'],axis=0)
         unanswerable = sample['unanswerables']
         start_positions = sample['starts']
         end_positions = sample['ends']
