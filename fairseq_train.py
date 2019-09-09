@@ -190,7 +190,7 @@ class Trainer(object):
                     'Cannot load model parameters from checkpoint {}; '
                     'please ensure that the architectures match.'.format(filename)
                 )
-                y = input('Do you want to continue? [y/n] '
+                y = input('Do you want to continue? [y/n] ')
                 if y == 'y':
                     self.get_model().load_state_dict(state['model'], strict=False)
                     if utils.has_parameters(self.get_criterion()):
@@ -612,10 +612,7 @@ def main(args, init_distributed=False):
 
     # Load the latest checkpoint if one is available and restore the
     # corresponding train iterator
-    try:
-      extra_state, epoch_itr = checkpoint_utils.load_checkpoint(args, trainer)
-    except:
-    
+    extra_state, epoch_itr = checkpoint_utils.load_checkpoint(args, trainer)
 
     # Train until the learning rate gets too small
     max_epoch = args.max_epoch or math.inf
