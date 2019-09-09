@@ -713,7 +713,7 @@ class SQuAD2Task(FairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        dictionary = self.dictionary = Dictionary.load(os.path.join(os.path.dirname(args.restore_file), 'dict.txt'))
+        dictionary = cls.dictionary = Dictionary.load(os.path.join(os.path.dirname(args.restore_file), 'dict.txt'))
         dictionary.add_symbol('<mask>')
         print('| dictionary: {} types'.format(len(dictionary)))
         return cls(args, dictionary)
