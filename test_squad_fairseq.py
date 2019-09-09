@@ -325,7 +325,7 @@ def _compute_softmax(scores):
 # Model Init
 
 import sys
-eval_model = sys.argv[2]
+eval_model = sys.argv[1]
 
 
 from fairseq_train import RobertaQAModel
