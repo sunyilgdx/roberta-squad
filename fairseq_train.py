@@ -107,36 +107,36 @@ def pad(list_of_tokens,
 from torch.utils.data.dataset import Dataset
 
 def from_records(records):
-	"""
-	Args:
-		records (string): Path to the csv file with annotations.
-	"""
+    """
+    Args:
+        records (string): Path to the csv file with annotations.
+    """
   
-	fn_style = isinstance(records,str)
-	if fn_style:
-	  def from_file(fn):
-		with open(fn, 'rb') as f:
-			while True:
-				try:
-					record = fread(f)
-					yield record
-				except EOFError:
-					break
-	  records = from_file(records)
+    fn_style = isinstance(records,str)
+    if fn_style:
+      def from_file(fn):
+        with open(fn, 'rb') as f:
+            while True:
+                try:
+                    record = fread(f)
+                    yield record
+                except EOFError:
+                    break
+      records = from_file(records)
 
-	records = list(records)
-	  
-	prepared_records = []
-	for record_samples in chunks(records,batch_size):
-		uid, inp, start, end, p_mask, unanswerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
-		start = start
-		end = end
-		unanswerable = unanswerable
-		inp = pad(inp,dtype=np.long)
-		p_mask = pad(p_mask,dtype=np.float32)
+    records = list(records)
+      
+    prepared_records = []
+    for record_samples in chunks(records,batch_size):
+        uid, inp, start, end, p_mask, unanswerable = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
+        start = start
+        end = end
+        unanswerable = unanswerable
+        inp = pad(inp,dtype=np.long)
+        p_mask = pad(p_mask,dtype=np.float32)
 
-		for e in zip(inp, p_mask, start, end, unanswerable):
-			yield e
+        for e in zip(inp, p_mask, start, end, unanswerable):
+            yield e
 
 
 
@@ -311,9 +311,9 @@ class RobertaQAEncoder(FairseqDecoder):
         if not features_only:
             start_logits, end_logits = self.span_logits(x).split(1, dim=-1)
             cls_logits = self.answer_class(x, cls_index=cls_index)
-			x = (start_logits, end_logits, cls_logits)
-			
-			
+            x = (start_logits, end_logits, cls_logits)
+            
+            
         return x, extra
 
     def extract_features(self, src_tokens, return_all_hiddens=False, **unused):
@@ -366,7 +366,7 @@ class SQuAD2Task(FairseqTask):
         parser.add_argument('data', help='colon separated path to data directories list, \
                             will be iterated upon during epochs in round-robin manner')
         parser.add_argument('--default_choices', default='', type=str)
-		#max_positions
+        #max_positions
 
     def __init__(self, args, dictionary):
         super().__init__(args)
@@ -386,21 +386,21 @@ class SQuAD2Task(FairseqTask):
         """
         path = self.args.data
 
-		tokens = []
-		starts = []
-		ends = []
-		unanswerables = []
-		
-		lengths = []
-		
-		for inp, p_mask, start, end, unanswerable in from_records(path):
-			tokens.append(inp)
-			lengths.append(len(inp))
-			starts.append(start)
-			ends.append(end)
-			unanswerables.append(unanswerable)
-			
-		
+        tokens = []
+        starts = []
+        ends = []
+        unanswerables = []
+        
+        lengths = []
+        
+        for inp, p_mask, start, end, unanswerable in from_records(path):
+            tokens.append(inp)
+            lengths.append(len(inp))
+            starts.append(start)
+            ends.append(end)
+            unanswerables.append(unanswerable)
+            
+        
         tokens = ListDataset(tokens, lengths)
         starts = ListDataset(starts, [1]*len(starts))
         ends = ListDataset(ends, [1]*len(ends))
@@ -419,8 +419,8 @@ class SQuAD2Task(FairseqTask):
                     'starts': starts,
                     'ends': ends,
                     'unanswerables': unanswerables,
-					'nsentences': NumSamplesDataset(),,
-					'ntokens': NumelDataset(tokens, reduce=True),
+                    'nsentences': NumSamplesDataset(),,
+                    'ntokens': NumelDataset(tokens, reduce=True),
                 },
                 sizes=[lengths],
             ),
@@ -461,28 +461,28 @@ class SQuAD2Criterion(FairseqCriterion):
 
     def forward(self, model, sample, reduce=True):
         # compute loss and accuracy
-		tokens = sample['tokens']
-		unanswerable = sample['unanswerables']
-		start_positions = sample['starts']
-		end_positions = sample['ends']
-		
+        tokens = sample['tokens']
+        unanswerable = sample['unanswerables']
+        start_positions = sample['starts']
+        end_positions = sample['ends']
+        
         (start_logits, end_logits, cls_logits), extra = model(tokens)
-		
-		
-		for x in (start_positions, end_positions, unanswerable):
-			if x is not None and x.dim() > 1:
-				x.squeeze_(-1)
+        
+        
+        for x in (start_positions, end_positions, unanswerable):
+            if x is not None and x.dim() > 1:
+                x.squeeze_(-1)
 
-		loss_fct = CrossEntropyLoss()
-		start_loss = loss_fct(start_logits, start_positions)
-		end_loss = loss_fct(end_logits, end_positions)
-		total_loss = (start_loss + end_loss) / 2
+        loss_fct = CrossEntropyLoss()
+        start_loss = loss_fct(start_logits, start_positions)
+        end_loss = loss_fct(end_logits, end_positions)
+        total_loss = (start_loss + end_loss) / 2
 
 
-		loss_fct_cls = nn.BCEWithLogitsLoss()
-		cls_loss = loss_fct_cls(cls_logits, unanswerable)
-		
-		total_loss += cls_loss * 0.5
+        loss_fct_cls = nn.BCEWithLogitsLoss()
+        cls_loss = loss_fct_cls(cls_logits, unanswerable)
+        
+        total_loss += cls_loss * 0.5
 
 
 
@@ -511,7 +511,7 @@ class SQuAD2Criterion(FairseqCriterion):
         }
 
         return agg_output
-		
-		
-		
+        
+        
+        
 cli_main()
