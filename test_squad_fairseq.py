@@ -324,11 +324,14 @@ def _compute_softmax(scores):
 
 # Model Init
 
+import sys
+eval_model = sys.argv[1]
+
 
 from fairseq_train import RobertaQAModel
 from time import time
 roberta_directory = './roberta.large'
-roberta_single = RobertaQAModel.from_pretrained(roberta_directory, checkpoint_file='model_qa.pt', strict=True).model
+roberta_single = RobertaQAModel.from_pretrained(roberta_directory, checkpoint_file=eval_model+'.pt', strict=True).model
 
 
 
