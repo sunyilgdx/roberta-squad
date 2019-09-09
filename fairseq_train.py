@@ -71,7 +71,7 @@ class FairseqRanger(FairseqOptimizer):
 
 
 
-def get_decayed_param_groups(named_parameters, num_layers, lr=3e-5, lr_rate_decay=0.908517, weight_decay=None):
+def get_decayed_param_groups(named_parameters, num_layers=None, lr=3e-5, lr_rate_decay=0.908517, weight_decay=None):
   lr_factors = []
   for k, v in named_parameters:
       if not v.requires_grad:
@@ -193,7 +193,7 @@ class Trainer(object):
         return self._lr_scheduler
 
     def _build_optimizer(self):
-        params = get_decayed_param_groups(chain(self.model.named_parameters(), self.criterion.named_parameters()))
+        params = get_decayed_param_groups(chain(self.model.named_parameters(), self.criterion.named_parameters()), 24)
 
         if self.args.fp16:
             if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
