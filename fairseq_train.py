@@ -473,7 +473,7 @@ def from_records(records):
         end = end
         unanswerable = unanswerable
         inp = pad(inp,dtype=np.long, torch_tensor=torch.LongTensor)
-        p_mask = pad(p_mask,dtype=np.float32,dtype=np.float32, torch_tensor=torch.FloatTensor)
+        p_mask = pad(p_mask,dtype=np.float32, torch_tensor=torch.FloatTensor)
 
         for e in zip(inp, p_mask, start, end, unanswerable):
             yield e
