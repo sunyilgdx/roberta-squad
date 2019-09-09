@@ -414,6 +414,8 @@ from squad_evaluation import compute_f1
 
 def handle_prediction_by_qid(self, 
                              prediction_by_qid, 
+                             start_n_top = 5,
+                             end_n_top = 5,
                              n_best_size = 5,
                              threshold = -1.5,
                              max_answer_length = 48,
@@ -449,8 +451,8 @@ def handle_prediction_by_qid(self,
       if True:
         start_top_log_probs = start_top_log_probs.cpu().detach().numpy()
         end_top_log_probs = end_top_log_probs.cpu().detach().numpy()
-        start_top_index = start_top_log_probs.argsort()[-self.start_n_top:][::-1].tolist()
-        end_top_index = end_top_log_probs.argsort()[-self.end_n_top:][::-1].tolist()
+        start_top_index = start_top_log_probs.argsort()[-start_n_top:][::-1].tolist()
+        end_top_index = end_top_log_probs.argsort()[-end_n_top:][::-1].tolist()
         start_top_log_probs = start_top_log_probs.tolist()
         end_top_log_probs = end_top_log_probs.tolist()
         for start_index in start_top_index:
