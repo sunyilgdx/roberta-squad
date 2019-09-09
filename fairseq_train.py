@@ -249,11 +249,12 @@ class Trainer(object):
                 self.get_model().load_state_dict(state['model'], strict=True)
                 if utils.has_parameters(self.get_criterion()):
                     self.get_criterion().load_state_dict(state['criterion'], strict=True)
-            except Exception:
+            except Exception as e:
                 ####################################################################################################
                 ####################################################################################################
                 ####################################################################################################
                 print(
+                    e, 
                     'Cannot load model parameters from checkpoint {}; '
                     'please ensure that the architectures match.'.format(filename)
                 )
