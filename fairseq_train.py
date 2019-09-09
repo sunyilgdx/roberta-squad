@@ -419,7 +419,7 @@ class SQuAD2Task(FairseqTask):
                     'starts': starts,
                     'ends': ends,
                     'unanswerables': unanswerables,
-                    'nsentences': NumSamplesDataset(),,
+                    'nsentences': NumSamplesDataset(),
                     'ntokens': NumelDataset(tokens, reduce=True),
                 },
                 sizes=[lengths],
