@@ -401,9 +401,12 @@ prediction_by_qid = {}
 with torch.no_grad():
   for e, rs in tqdm(batches):
     inp, p_mask, start, end, _ = e
-    result_tuples, _ = roberta(inp.to(device=device))
+    (start_logits, end_logits, cls_logits), _ = roberta(inp.to(device=device))
+    start_logits = start_logits.squeeze(-1)
+    end_logits = end_logits.squeeze(-1)
+
     
-    for result, r in zip(zip(*result_tuples), rs):
+    for result, r in zip(zip(*(start_logits, end_logits, cls_logits)), rs):
       qid = r.qid
       if qid not in prediction_by_qid:
         prediction_by_qid[qid] = []
