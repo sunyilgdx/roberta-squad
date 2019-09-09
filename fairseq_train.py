@@ -694,9 +694,8 @@ class SQuAD2Task(FairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        paths = args.data.split(':')
-        assert len(paths) > 0
-        dictionary = Dictionary.load(os.path.join(paths[0], 'dict.txt'))
+        dictionary = Dictionary.load(os.path.join(args.restore_file, 'dict.txt'))
+        dictionary.add_symbol('<mask>')
         print('| dictionary: {} types'.format(len(dictionary)))
         return cls(args, dictionary)
 
