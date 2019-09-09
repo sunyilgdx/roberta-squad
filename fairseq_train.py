@@ -741,8 +741,8 @@ class SQuAD2Task(FairseqTask):
             
         
         tokens = BaseWrapperDataset(tokens)
-        starts = BaseWrapperDataset(np.array(starts, dtype=np.int32))
-        ends = BaseWrapperDataset(np.array(ends, dtype=np.int32))
+        starts = BaseWrapperDataset(np.array(starts, dtype=np.long))
+        ends = BaseWrapperDataset(np.array(ends, dtype=np.long))
         unanswerables = BaseWrapperDataset(np.array(unanswerables, dtype=np.float32))
 
 
