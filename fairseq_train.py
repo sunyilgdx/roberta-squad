@@ -28,7 +28,75 @@ import sys
 from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
 from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
 from fairseq.optim import lr_scheduler
+import re
+import types
 
+import torch.optim
+from torch.optim import FairseqOptimizer, register_optimizer
+from ranger import Ranger
+
+@register_optimizer('ranger')
+class FairseqRanger(FairseqOptimizer):
+
+    def __init__(self, args, params):
+        super().__init__(args)
+        self._optimizer = Ranger(params, **self.optimizer_config)
+
+    @staticmethod
+    def add_args(parser):
+        """Add optimizer-specific arguments to the parser."""
+        # fmt: off
+        parser.add_argument('--adam-betas', default='(0.9, 0.999)', metavar='B',
+                            help='betas for Adam optimizer')
+        parser.add_argument('--adam-eps', type=float, default=1e-8, metavar='D',
+                            help='epsilon for Adam optimizer')
+        parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
+                            help='weight decay')
+        # fmt: on
+
+    @property
+    def optimizer_config(self):
+        """
+        Return a kwarg dictionary that will be used to override optimizer
+        args stored in checkpoints. This allows us to load a checkpoint and
+        resume training using a different set of optimizer args, e.g., with a
+        different learning rate.
+        """
+        return {
+            'lr': self.args.lr[0],
+            'betas': eval(self.args.adam_betas),
+            'eps': self.args.adam_eps,
+            'weight_decay': self.args.weight_decay,
+        }
+
+
+
+def get_decayed_param_groups(named_parameters, num_layers, lr=3e-5, lr_rate_decay=0.908517, weight_decay=None):
+  lr_factors = []
+  for k, v in named_parameters:
+      if not v.requires_grad:
+        continue
+      param = {
+          'params': v,
+      }
+      if lr_rate_decay and lr_rate_decay != 1:
+        factor = 1
+        if 'sentence_encoder.layers' in k:
+          layer = re.search(r'.layers.(\d+)',k)
+          factor = lr_rate_decay**(num_layers-layer)
+
+        elif 'embed_tokens.weight' in k or 'embed_positions' in k:
+          layer = 0
+          factor = lr_rate_decay**(num_layers-layer)
+
+        param['lr'] = lr * factor
+      if weight_decay and weight_decay != 0:
+        param['weight_decay'] = 0.0 if 'layer_norm' in k or 'bias' in k else weight_decay
+        
+      lr_factors.append(param)
+  return lr_factors
+      
+      
 
 
 class Trainer(object):
@@ -125,12 +193,7 @@ class Trainer(object):
         return self._lr_scheduler
 
     def _build_optimizer(self):
-        params = list(
-            filter(
-                lambda p: p.requires_grad,
-                chain(self.model.parameters(), self.criterion.parameters()),
-            )
-        )
+        params = get_decayed_param_groups(chain(self.model.named_parameters(), self.criterion.named_parameters()))
 
         if self.args.fp16:
             if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
