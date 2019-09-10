@@ -189,7 +189,7 @@ def generate_tfrecord(data_dir,
         for record in e:
             if return_feature:
                 record, no_ans, r = record
-                r = tk.from_bytes(b)
+                r = tk.from_bytes(r)
                 rs.append(r)
             else:
                 record, no_ans = record
