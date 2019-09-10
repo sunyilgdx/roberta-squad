@@ -326,6 +326,7 @@ def _compute_softmax(scores):
 
 import sys
 eval_model = sys.argv[1]
+eval_dir = sys.argv[2]
 
 
 from fairseq_train import RobertaQAModel
@@ -385,8 +386,6 @@ if fp16:
 roberta.eval()
   
   
-eval_dir = 'test-v2.SQuAD.json'
-
 orig_data = {} 
 for e in gen(eval_dir):
   for q in e[2]:
