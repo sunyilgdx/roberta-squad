@@ -429,6 +429,7 @@ def handle_prediction_by_qid(self,
   global prelim_predictions
   use_ans_class = True
   all_predictions = {}
+  all_predictions_output = {}
   scores_diff_json = {}
   score = 0
   for qid, predictions in prediction_by_qid.items():
@@ -575,15 +576,18 @@ def handle_prediction_by_qid(self,
       output["end_log_prob"] = entry.end_log_prob
       nbest_json.append(output)
 
+	s = compute_f1(q['answer_text'], best_non_null_entry.text if best_null_score < threshold else '')
+	all_predictions_output[qid] = [q['answer_text'], best_non_null_entry.text if best_null_score < threshold else '', s]
     if debug:
       ans = best_non_null_entry.text if best_null_score < threshold else '*No answer*'
       truth = q['answer_text'] or '*No answer*'
+	    
       if (not wrong_only or ans != truth):
         print('Q:', q['question'])
         print('A:', ans, '(',best_null_score,')',  '[',best_score_no_ans,']', )
         print('Truth:', truth)
         print('')
-      score += compute_f1(truth, ans)
+      score += s
 
     assert len(nbest_json) >= 1
     assert best_non_null_entry is not None
@@ -597,11 +601,12 @@ def handle_prediction_by_qid(self,
     print('score: ', score, '/', len(all_predictions), '=', score / len(all_predictions))
   
   
-  return nbest_json, all_predictions, scores_diff_json
+  return nbest_json, all_predictions, scores_diff_json, all_predictions_output
 
-nbest_json, all_predictions, scores_diff_json = handle_prediction_by_qid(roberta_single, prediction_by_qid, debug=False, wrong_only=True)
+nbest_json, all_predictions, scores_diff_json, all_predictions_output = handle_prediction_by_qid(roberta_single, prediction_by_qid, debug=False, wrong_only=True)
 
-
+with open('all_predictions_output.json','w') as f:
+  json.dump(all_predictions_output,f, separators=(',',':'))
 
 from squad_evaluation import evaluate
 with open(eval_dir, "r") as f:
