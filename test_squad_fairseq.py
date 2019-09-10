@@ -523,7 +523,7 @@ def handle_prediction_by_qid(self,
 
       char_s  = r.tok_to_char_offset[s]
       char_e  = r.tok_to_char_offset[e]  # inclusive
-      char_e += r.length_at_char[char_e]
+      char_e += len(r.all_text_tokens[r.char_to_tok_offset[char_e]])
 
 
       final_text = r.text[char_s:char_e].strip() # this_paragraph_text[char_s:char_e]
