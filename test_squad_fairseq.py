@@ -1,7 +1,7 @@
 from torch import nn
 import argparse
 import torch
-from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT
+from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT, DocTokens
 from glob import glob
 import numpy as np
 import json
@@ -140,7 +140,7 @@ def work(ss, debug=False):
             )
             
             if return_feature:
-                results.append((record, no_ans,r))
+                results.append((record, no_ans, r.serialize()))
             else:
                 results.append((record, no_ans))
 
@@ -169,7 +169,7 @@ def generate_tfrecord(data_dir,
     
         pool = Pool(cpu_count-1,initializer=init)
         
-    tokenizer = get_tokenizer()
+    tokenizer = tk = get_tokenizer()
         
     tot_num_no_ans = 0
     
@@ -189,6 +189,7 @@ def generate_tfrecord(data_dir,
         for record in e:
             if return_feature:
                 record, no_ans, r = record
+                r = tk.from_bytes(b)
                 rs.append(r)
             else:
                 record, no_ans = record
