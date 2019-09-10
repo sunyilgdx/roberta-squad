@@ -391,7 +391,7 @@ for e in gen(eval_dir):
   for q in e[2]:
     orig_data[q['id']] = q
   
-records, rs = generate_tfrecord(eval_dir, is_training=False, parallel_process=False, return_feature=True)
+records, rs = generate_tfrecord(eval_dir, is_training=False, parallel_process=True, return_feature=True)
 
 records = records
 rs = rs
