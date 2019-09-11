@@ -604,20 +604,23 @@ def handle_prediction_by_qid(self,
   
   return nbest_json, all_predictions, scores_diff_json, all_predictions_output
 
-nbest_json, all_predictions, scores_diff_json, all_predictions_output = handle_prediction_by_qid(roberta_single, prediction_by_qid, debug=False, wrong_only=True)
-
-with open('all_predictions_output.json','w') as f:
-  json.dump(all_predictions_output,f, separators=(',',':'))
-
-from squad_evaluation import evaluate
-with open(eval_dir, "r") as f:
-  predict_data = json.load(f)["data"]
-result, exact_raw, f1_raw, wrongs = evaluate(predict_data, 
+  
+try:
+  nbest_json, all_predictions, scores_diff_json, all_predictions_output = handle_prediction_by_qid(roberta_single, prediction_by_qid, debug=False, wrong_only=True)
+  
+  with open('all_predictions_output.json','w') as f:
+    json.dump(all_predictions_output,f, separators=(',',':'))
+  
+  from squad_evaluation import evaluate
+  with open(eval_dir, "r") as f:
+    predict_data = json.load(f)["data"]
+  result, exact_raw, f1_raw, wrongs = evaluate(predict_data, 
                                              all_predictions, 
                                              na_probs=scores_diff_json, 
                                              na_prob_thresh=0, 
                                              out_file=None, 
                                              out_image_dir=None)
 
-import code
-code.interact(local=locals())
+finally:
+  import code
+  code.interact(local=locals())
