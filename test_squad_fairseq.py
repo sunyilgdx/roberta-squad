@@ -72,13 +72,16 @@ def fread(f):
     return uid, inp, start, end, p_mask, unanswerable
             
 def gen(paths):
-
+    j = 0
     for i,context,qas in data_from_path(paths):
         for q in qas:
             if len(q['question']) < 5 or ('choices' in q and ''.join(q['choices']) == ''):
                 continue
             if '\1' in q['question']:
                 q['question'] = q['question'].replace('\1', '___')
+        j += len(qas)
+        if j > 1000:
+          return
         yield i,context, qas
         
         
@@ -394,8 +397,8 @@ for e in gen(eval_dir):
   
 records, rs = generate_tfrecord(eval_dir, is_training=False, parallel_process=True, return_feature=True)
 
-records = records
-rs = rs
+records = records[:100]
+rs = rs[:100]
 
 
 batches = list(zip(from_records(records,batch_size, half=fp16, shuffle=False), chunks(rs,batch_size)))
