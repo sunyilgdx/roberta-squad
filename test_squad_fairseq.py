@@ -79,9 +79,9 @@ def gen(paths):
                 continue
             if '\1' in q['question']:
                 q['question'] = q['question'].replace('\1', '___')
-        j += len(qas)
-        if j > 1000:
-          return
+        #j += len(qas)
+        #if j > 1000:
+        #  return
         yield i,context, qas
         
         
@@ -397,8 +397,8 @@ for e in gen(eval_dir):
   
 records, rs = generate_tfrecord(eval_dir, is_training=False, parallel_process=True, return_feature=True)
 
-records = records[:100]
-rs = rs[:100]
+records = records #[:100]
+rs = rs #[:100]
 
 
 batches = list(zip(from_records(records,batch_size, half=fp16, shuffle=False), chunks(rs,batch_size)))
@@ -436,7 +436,7 @@ def handle_prediction_by_qid(self,
   all_predictions_output = {}
   scores_diff_json = {}
   score = 0
-  for qid, predictions in prediction_by_qid.items():
+  for qid, predictions in tqdm(prediction_by_qid.items()):
     q = orig_data[qid]
     ri = 0
     prelim_predictions = []
@@ -581,7 +581,7 @@ def handle_prediction_by_qid(self,
       nbest_json.append(output)
 
     s = compute_f1(q['answer_text'], best_non_null_entry.text if best_null_score < threshold else '')
-    all_predictions_output[qid] = [q['answer_text'], best_non_null_entry.text if best_null_score < threshold else '', s]
+    all_predictions_output[qid] = [q['answer_text'], best_non_null_entry.text, best_null_score, s]
     if debug:
       ans = best_non_null_entry.text if best_null_score < threshold else '*No answer*'
       truth = q['answer_text'] or '*No answer*'
