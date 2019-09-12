@@ -390,34 +390,43 @@ if fp16:
 roberta.eval()
   
   
-orig_data = {} 
-for e in gen(eval_dir):
-  for q in e[2]:
-    orig_data[q['id']] = q
   
-records, rs = generate_tfrecord(eval_dir, is_training=False, parallel_process=True, return_feature=True)
+  
+  
+def evaluate(eval_dir):
+  
+  orig_data = {} 
+  for e in gen(eval_dir):
+    for q in e[2]:
+      orig_data[q['id']] = q
+  
+  records, rs = generate_tfrecord(eval_dir, is_training=False, parallel_process=True, return_feature=True)
 
-records = records #[:100]
-rs = rs #[:100]
+  records = records #[:100]
+  rs = rs #[:100]
 
 
-batches = list(zip(from_records(records,batch_size, half=fp16, shuffle=False), chunks(rs,batch_size)))
+  batches = list(zip(from_records(records,batch_size, half=fp16, shuffle=False), chunks(rs,batch_size)))
 
-prediction_by_qid = {}
-with torch.no_grad():
-  for e, rs in tqdm(batches):
-    inp, p_mask, start, end, _ = e
-    (start_logits, end_logits, cls_logits), _ = roberta(inp.to(device=device))
-    start_logits = start_logits.squeeze(-1)
-    end_logits = end_logits.squeeze(-1)
+  prediction_by_qid = {}
+  
+  with torch.no_grad():
+    for e, rs in tqdm(batches):
+      inp, p_mask, start, end, _ = e
+      (start_logits, end_logits, cls_logits), _ = roberta(inp.to(device=device))
+      start_logits = start_logits.squeeze(-1)
+      end_logits = end_logits.squeeze(-1)
 
     
-    for result, r in zip(zip(*(start_logits, end_logits, cls_logits)), rs):
-      qid = r.qid
-      if qid not in prediction_by_qid:
-        prediction_by_qid[qid] = []
-      prediction_by_qid[qid].append((result, r))
+      for result, r in zip(zip(*(start_logits, end_logits, cls_logits)), rs):
+        qid = r.qid
+        if qid not in prediction_by_qid:
+          prediction_by_qid[qid] = []
+        prediction_by_qid[qid].append((result, r))
 
+  
+  return prediction_by_qid
+  
 
 from squad_evaluation import compute_f1
 
@@ -609,6 +618,7 @@ def handle_prediction_by_qid(self,
 
   
 try:
+  prediction_by_qid = evaluate(eval_dir)
   nbest_json, all_predictions, scores_diff_json, all_predictions_output = handle_prediction_by_qid(roberta_single, prediction_by_qid, debug=False, wrong_only=True)
   
   with open('all_predictions_output.json','w') as f:
