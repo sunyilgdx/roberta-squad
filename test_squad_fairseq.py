@@ -428,7 +428,7 @@ def evaluate(eval_dir):
         prediction_by_qid[qid].append((result, r))
 
   
-  return prediction_by_qid
+  return orig_data, prediction_by_qid
   
 
 from squad_evaluation import compute_f1
@@ -621,16 +621,16 @@ def handle_prediction_by_qid(self,
 
   
 try:
-  prediction_by_qid = evaluate(eval_dir)
+  orig_data, prediction_by_qid = evaluate(eval_dir)
   nbest_json, all_predictions, scores_diff_json, all_predictions_output = handle_prediction_by_qid(roberta_single, prediction_by_qid, debug=False, wrong_only=True)
   
   with open('all_predictions_output.json','w') as f:
     json.dump(all_predictions_output,f, separators=(',',':'))
   
-  from squad_evaluation import evaluate
+  from squad_evaluation import evaluate as squad_squad_evaluation
   with open(eval_dir, "r") as f:
     predict_data = json.load(f)["data"]
-  result, exact_raw, f1_raw, wrongs = evaluate(predict_data, 
+  result, exact_raw, f1_raw, wrongs = squad_squad_evaluation(predict_data, 
                                              all_predictions, 
                                              na_probs=scores_diff_json, 
                                              na_prob_thresh=0, 
