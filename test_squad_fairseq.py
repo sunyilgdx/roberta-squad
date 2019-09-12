@@ -57,6 +57,9 @@ def char_anchors_to_tok_pos(r):
         return -1,-1
     a = r.char_to_tok_offset[a]
     b = r.char_to_tok_offset[b]
+    while b+1 < len(r.all_doc_tokens) and r.all_text_tokens[b+1] == '':
+        b += 1
+        
     return a, b
 
 def read(dat):
