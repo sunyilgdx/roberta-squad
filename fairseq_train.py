@@ -1050,7 +1050,8 @@ def chunks(l, n):
                 for _ in range(n):
                     out.append(next(it))
             except StopIteration:
-                yield out
+                if out:
+                    yield out
                 break
 
             yield out
@@ -1174,8 +1175,8 @@ class RobertaQAModel(FairseqLanguageModel):
 
         return x, extra
 
-    def register_qa_head(self, **kwargs):
-        self.qa_heads = RobertaQAHead(self.args)
+    #def register_qa_head(self, **kwargs):
+    #    self.qa_heads = RobertaQAHead(self.args)
 
     @property
     def supported_targets(self):
@@ -1196,7 +1197,7 @@ class RobertaQAModel(FairseqLanguageModel):
         return RobertaHubInterface(x['args'], x['task'], x['models'][0])
 
 
-
+'''
 class RobertaQAHead(nn.Module):
     """Head for sentence-level classification tasks."""
 
@@ -1210,14 +1211,15 @@ class RobertaQAHead(nn.Module):
         cls_logits = self.answer_class(x, cls_index=cls_index)
         x = (start_logits, end_logits, cls_logits)
         return x
+'''
 
 class PoolerAnswerClass(nn.Module):
     """ Compute SQuAD 2.0 answer class from classification and start tokens hidden states. """
-    def __init__(self, hidden_size):
+    def __init__(self, hidden_size, dropout=0.2):
         super(PoolerAnswerClass, self).__init__()
         self.dense_0 = nn.Linear(hidden_size, hidden_size)
         self.activation = nn.Tanh() #Mish() # nn.Tanh()
-        #self.dropout = nn.Dropout(p=dropout)
+        self.dropout = nn.Dropout(p=dropout)
         self.dense_1 = nn.Linear(hidden_size, 1)
 
     def forward(self, hidden_states, cls_index=None):
