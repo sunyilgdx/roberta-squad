@@ -1318,8 +1318,8 @@ def roberta_large_architecture(args):
 
 
 from fairseq.data import BaseWrapperDataset
-@register_task('squad2')
-class SQuAD2Task(FairseqTask):
+@register_task('qa_embed')
+class QAEmbedTask(FairseqTask):
     """Task for training masked language models (e.g., BERT, RoBERTa)."""
 
     @staticmethod
@@ -1390,8 +1390,8 @@ class SQuAD2Task(FairseqTask):
         return self.dictionary
 
 
-@register_criterion('squad2')
-class SQuAD2Criterion(FairseqCriterion):
+@register_criterion('qa_embed')
+class QAEmbedCriterion(FairseqCriterion):
 
     def __init__(self, args, task):
         super().__init__(args, task)
