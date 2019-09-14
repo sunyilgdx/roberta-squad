@@ -1164,9 +1164,9 @@ class RobertaQAEmbedModel(FairseqLanguageModel):
         encoder = RobertaQAEmbed(args, task.source_dictionary)
         return cls(args, encoder)
 
-    def forward(self, src_tokens, return_loss=False, **kwargs):
+    def forward(self, q, a, return_loss=False, **kwargs):
 
-        x, extra = self.decoder(src_tokens, return_loss=return_loss, **kwargs)
+        x, extra = self.decoder(q, a, return_loss=return_loss, **kwargs)
 
 
         return x, extra
