@@ -1372,7 +1372,7 @@ class QAEmbedTask(FairseqTask):
                     'questions': questions,
                     'answers': answers,
                     'nsentences': NumSamplesDataset(),
-                    'ntokens': NumelDataset(tokens, reduce=True),
+                    'ntokens': NumelDataset(questions, reduce=True),
                 },
                 sizes=[lengths],
             ),
