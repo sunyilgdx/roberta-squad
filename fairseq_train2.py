@@ -1347,8 +1347,8 @@ class QAEmbedTask(FairseqTask):
         """
         path = self.args.data
 
-		questions = []
-		answers = []
+        questions = []
+        answers = []
         
         lengths = []
         
