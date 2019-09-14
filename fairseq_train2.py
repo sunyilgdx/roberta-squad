@@ -1360,6 +1360,7 @@ class QAEmbedTask(FairseqTask):
         
         questions = BaseWrapperDataset(questions)
         answers = BaseWrapperDataset(answers)
+        lengths = np.array(lengths, dtype=np.long)
 
         print('| loaded {} batches from: {}'.format(len(lengths), path))
 
