@@ -1021,8 +1021,8 @@ def read(dat):
 
 def fread(f):
     a, b = marshal.load(f)
-    a = np.frombuffer(a, dtype=np.uint16).astype(np.int32)
-    b = np.frombuffer(b, dtype=np.uint16).astype(np.int32)
+    #a = np.frombuffer(a, dtype=np.uint16).astype(np.int32)
+    #b = np.frombuffer(b, dtype=np.uint16).astype(np.int32)
     return a, b
             
 
@@ -1082,8 +1082,8 @@ def from_records(records):
     prepared_records = []
     for record_samples in chunks(records,48):
         a, b = zip(*record_samples) if fn_style else zip(*(read(record) for record in record_samples))
-        a = pad(a,dtype=np.long, torch_tensor=torch.LongTensor)
-        b = pad(b,dtype=np.long, torch_tensor=torch.LongTensor)
+        #a = pad(a,dtype=np.long, torch_tensor=torch.LongTensor)
+        #b = pad(b,dtype=np.long, torch_tensor=torch.LongTensor)
 
         for e in zip(a,b):
             yield e
@@ -1359,7 +1359,7 @@ class QAEmbedTask(FairseqTask):
         for q, a in tqdm(from_records(path)):
             questions.append(q)
             answers.append(a)
-            lengths.append(len(q))
+            lengths.append(512)
             
         
         questions = BaseWrapperDataset(questions)
@@ -1418,8 +1418,8 @@ class QAEmbedCriterion(FairseqCriterion):
 
     def forward(self, model, sample, reduce=True):
         # compute loss and accuracy
-        questions = sample['questions']
-        answers = sample['answers']
+        questions = pad(np.frombuffer(sample['questions'], dtype=np.uint16).astype(np.int32),dtype=np.long, torch_tensor=torch.LongTensor)
+        answers = pad(np.frombuffer(sample['answers'], dtype=np.uint16).astype(np.int32),dtype=np.long, torch_tensor=torch.LongTensor)
         
         (loss, corrects) = model(questions, answers, return_loss=True)
 
