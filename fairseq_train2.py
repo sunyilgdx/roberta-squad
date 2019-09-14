@@ -1356,7 +1356,7 @@ class QAEmbedTask(FairseqTask):
         
         lengths = []
         
-        for q, a in from_records(path):
+        for q, a in tqdm(from_records(path)):
             questions.append(q)
             answers.append(a)
             lengths.append(len(q))
