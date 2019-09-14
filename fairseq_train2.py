@@ -1164,7 +1164,7 @@ class RobertaQAEmbedModel(FairseqLanguageModel):
         encoder = RobertaQAEmbed(args, task.source_dictionary)
         return cls(args, encoder)
 
-    def forward(self, q, a, return_loss=False, **kwargs):
+    def forward(self, q=None, a=None, return_loss=False, **kwargs):
 
         x, extra = self.decoder(q, a, return_loss=return_loss, **kwargs)
 
@@ -1239,22 +1239,26 @@ class RobertaQAEmbed(FairseqDecoder):
         self.log_softmax = torch.nn.LogSoftmax(dim=1)
 
     def forward(self, q, a, return_loss=False, **kwargs):
-        if q and a:
+        has_q = q is not None
+        has_a = a is not None
+        if has_q and has_a:
           assert q.shape[0] == a.shape[0]
           q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0)).mean(1).split(q.size(0))
-        elif q:
+        elif has_q:
           q_hs = self.extract_features(q).mean(1)  # [bs, hs]
-        elif a:
+        elif has_a:
           a_hs = self.extract_features(a).mean(1)  # [bs, hs]
-        if q:
+        else:
+          raise Exception('??')
+        if has_q:
           q_embed = self.q_fnn_layer(q_hs)
-        if a:
+        if has_a:
           a_embed = self.a_fnn_layer(q_hs)
 
         outputs = () 
 
         if return_loss:
-            if not (q and a):
+            if not (has_q and has_a):
               raise Exception('Cannot calculate loss without both q and a')
             q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
             a_embed_norm = a_embed / a_embed.norm(dim=1)[:,None]
@@ -1266,12 +1270,12 @@ class RobertaQAEmbed(FairseqDecoder):
             outputs = (loss,corrects)
 
         else:
-            if q:
+            if has_q:
               if normalize:
                 q_embed = q_embed / q_embed.norm(dim=1)[:,None]
               outputs = (q_embed,)
               
-            if a:
+            if has_a:
               if normalize:
                 a_embed = a_embed / a_embed.norm(dim=1)[:,None]
               outputs = outputs + (a_embed,)
