@@ -1237,7 +1237,7 @@ class RobertaQAEmbed(FairseqDecoder):
         self.q_fnn_layer = FnnLayer(hs)
         self.a_fnn_layer = FnnLayer(hs)
 
-    def forward(self, q, a, return_loss=False, **kwargs):
+    def forward(self, q=None, a=None, return_loss=False, **kwargs):
         has_q = q is not None
         has_a = a is not None
         if has_q and has_a:
@@ -1252,7 +1252,7 @@ class RobertaQAEmbed(FairseqDecoder):
         if has_q:
           q_embed = self.q_fnn_layer(q_hs)
         if has_a:
-          a_embed = self.a_fnn_layer(q_hs)
+          a_embed = self.a_fnn_layer(a_hs)
 
         outputs = () 
 
@@ -1260,10 +1260,13 @@ class RobertaQAEmbed(FairseqDecoder):
             if not (has_q and has_a):
               raise Exception('Cannot calculate loss without both q and a')
             
+            batch_size = q_hs.shape[0]
             
             similarity_matrix = torch.mm(q_embed,a_embed.t())
             
-            loss = torch.nn.functional.cross_entropy(similarity_matrix, torch.arange(q_hs.shape[0]).cuda())
+            targets = torch.arange(batch_size).cuda()
+            
+            loss = torch.nn.functional.cross_entropy(similarity_matrix, targets)
             
             '''
             q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
@@ -1273,19 +1276,15 @@ class RobertaQAEmbed(FairseqDecoder):
             
             loss = ((torch.eye(q_hs.shape[0])*2-1) - similarity_matrix).norm(dim=1).mean()
             '''
-            corrects = torch.arange(q_hs.shape[0]).cuda().eq(torch.argmax(similarity_matrix, axis=1)).sum()
+            corrects = targets.eq(torch.argmax(similarity_matrix, axis=1)).sum()
             
             outputs = (loss,corrects)
 
         else:
             if has_q:
-              if normalize:
-                q_embed = q_embed / q_embed.norm(dim=1)[:,None]
               outputs = (q_embed,)
               
             if has_a:
-              if normalize:
-                a_embed = a_embed / a_embed.norm(dim=1)[:,None]
               outputs = outputs + (a_embed,)
               
         return outputs
