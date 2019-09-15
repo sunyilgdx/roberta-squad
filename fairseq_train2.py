@@ -1204,7 +1204,7 @@ class FnnLayer(nn.Module):
         
     def forward(self, hidden_states):
 
-        return self.dropout(self.activation(self.dense(hidden_states).squeeze(-1))) + hidden_states
+        return self.dropout(self.activation(self.dense(hidden_states))) + hidden_states
 
 
 
@@ -1240,13 +1240,14 @@ class RobertaQAEmbed(FairseqDecoder):
     def forward(self, q=None, a=None, return_loss=False, **kwargs):
         has_q = q is not None
         has_a = a is not None
+        batch_size = q.size(0)
         if has_q and has_a:
           assert q.shape[0] == a.shape[0]
-          q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0))[0].mean(1).split(q.size(0))
+          q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0))[0].mean(1).split(batch_size)
         elif has_q:
-          q_hs = self.extract_features(q).mean(1)  # [bs, hs]
+          q_hs = self.extract_features(q)[0].mean(1)  # [bs, hs]
         elif has_a:
-          a_hs = self.extract_features(a).mean(1)  # [bs, hs]
+          a_hs = self.extract_features(a)[0].mean(1)  # [bs, hs]
         else:
           raise Exception('??')
         if has_q:
@@ -1260,13 +1261,15 @@ class RobertaQAEmbed(FairseqDecoder):
             if not (has_q and has_a):
               raise Exception('Cannot calculate loss without both q and a')
             
-            batch_size = q_hs.shape[0]
             
             similarity_matrix = torch.mm(q_embed,a_embed.t())
+            print(similarity_matrix)
             
-            targets = torch.arange(batch_size).cuda()
+            targets = torch.arange(batch_size).cuda()   
+            print(targets)
             
-            loss = torch.nn.functional.cross_entropy(similarity_matrix, targets)
+            loss = torch.nn.functional.cross_entropy(similarity_matrix, targets)            
+            print(loss)
             
             '''
             q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
