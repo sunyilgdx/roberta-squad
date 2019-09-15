@@ -1433,7 +1433,7 @@ class QAEmbedCriterion(FairseqCriterion):
         (loss, corrects) = model(questions, answers, return_loss=True)
 
         
-        sample_size = tokens.size(0) 
+        sample_size = questions.size(0) 
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
             'corrects': utils.item(corrects.data) if reduce else corrects.data,
