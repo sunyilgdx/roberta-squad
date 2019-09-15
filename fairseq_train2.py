@@ -1280,7 +1280,7 @@ class RobertaQAEmbed(FairseqDecoder):
             loss = ((torch.eye(q_hs.shape[0])*2-1) - similarity_matrix).norm(dim=1).mean()
             '''
             corrects = targets.eq(torch.argmax(similarity_matrix, axis=1)).sum()
-            
+            targets.detach()
             outputs = (loss,corrects)
 
         else:
@@ -1435,6 +1435,9 @@ class QAEmbedCriterion(FairseqCriterion):
 
         
         sample_size = questions.size(0) 
+        questions.detach()
+        answers.detach()
+        
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
             'corrects': utils.item(corrects.data) if reduce else corrects.data,
