@@ -1274,7 +1274,7 @@ class RobertaQAEmbed(FairseqDecoder):
             
             loss = ((torch.eye(q_hs.shape[0])*2-1) - similarity_matrix).norm(dim=1).mean()
             '''
-            corrects = torch.arange(q_hs.shape[0]).eq(torch.argmax(similarity_matrix, axis=1)).sum()
+            corrects = torch.arange(q_hs.shape[0]).cuda().eq(torch.argmax(similarity_matrix, axis=1)).sum()
             
             outputs = (loss,corrects)
 
