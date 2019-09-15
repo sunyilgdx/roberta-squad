@@ -1250,8 +1250,7 @@ class RobertaQAEmbed(FairseqDecoder):
           a_hs = self.extract_features(a)[0].mean(1)  # [bs, hs]
         else:
           raise Exception('??')
-        print(q_hs)
-        print(a_hs)
+
         if has_q:
           q_embed = self.q_fnn_layer(q_hs)
           q_embed = q_embed / q_embed.norm(dim=1)[:,None]
@@ -1267,13 +1266,10 @@ class RobertaQAEmbed(FairseqDecoder):
             
             
             similarity_matrix = torch.mm(q_embed,a_embed.t())
-            print(similarity_matrix)
             
             targets = torch.arange(batch_size).cuda()   
-            print(targets)
             
-            loss = torch.nn.functional.cross_entropy(similarity_matrix, targets)            
-            print(loss)
+            loss = torch.nn.functional.cross_entropy(similarity_matrix, targets)
             
             '''
             q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
