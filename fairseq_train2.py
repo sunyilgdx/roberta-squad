@@ -1000,7 +1000,7 @@ import os
 roberta_directory = './roberta.large'
 
 
-max_seq_length   = 512
+max_seq_length   = 192
 max_query_length = 128
 doc_stride       = 128
 
@@ -1267,12 +1267,10 @@ class RobertaQAEmbed(FairseqDecoder):
             
             similarity_matrix = torch.mm(q_embed,a_embed.t())
             
-            print(similarity_matrix)
-            
             targets = torch.arange(batch_size).cuda()   
             
             loss = torch.nn.functional.cross_entropy(similarity_matrix, targets)
-            print(loss)
+            
             '''
             q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
             a_embed_norm = a_embed / a_embed.norm(dim=1)[:,None]
@@ -1371,14 +1369,14 @@ class QAEmbedTask(FairseqTask):
         for q, a in tqdm(from_records(path)):
             questions.append(q)
             answers.append(a)
-            lengths.append(512)
+            lengths.append(192)
             
         
         questions = BaseWrapperDataset(questions)
         answers = BaseWrapperDataset(answers)
         lengths = np.array(lengths, dtype=np.long)
 
-        print('| loaded {} batches from: {}'.format(len(lengths), path))
+        print('| loaded {} batches [size:{}] from: {}'.format(len(lengths), max_seq_length, path))
 
         shuffle = np.random.permutation(len(lengths))
 
