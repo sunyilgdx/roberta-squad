@@ -1250,6 +1250,8 @@ class RobertaQAEmbed(FairseqDecoder):
           a_hs = self.extract_features(a)[0].mean(1)  # [bs, hs]
         else:
           raise Exception('??')
+        print(q_hs)
+        print(a_hs)
         if has_q:
           q_embed = self.q_fnn_layer(q_hs)
         if has_a:
