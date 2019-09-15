@@ -1418,8 +1418,8 @@ class QAEmbedCriterion(FairseqCriterion):
 
     def forward(self, model, sample, reduce=True):
         # compute loss and accuracy
-        questions = pad([np.frombuffer(e, dtype=np.uint16).astype(np.int32) for e in sample['questions']],dtype=np.long, torch_tensor=torch.LongTensor)
-        answers   = pad([np.frombuffer(e, dtype=np.uint16).astype(np.int32) for e in sample['answers']],dtype=np.long, torch_tensor=torch.LongTensor)
+        questions = pad([np.frombuffer(e, dtype=np.uint16).astype(np.int32) for e in sample['questions']],dtype=np.long, torch_tensor=torch.LongTensor).cuda()
+        answers   = pad([np.frombuffer(e, dtype=np.uint16).astype(np.int32) for e in sample['answers']],dtype=np.long, torch_tensor=torch.LongTensor).cuda()
         
         (loss, corrects) = model(questions, answers, return_loss=True)
 
