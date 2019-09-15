@@ -1236,14 +1236,14 @@ class RobertaQAEmbed(FairseqDecoder):
         hs = args.encoder_embed_dim
         self.q_fnn_layer = FnnLayer(hs)
         self.a_fnn_layer = FnnLayer(hs)
-        self.log_softmax = torch.nn.LogSoftmax(dim=1)
+        self.criterion = torch.nn.CrossEntropyLoss()
 
     def forward(self, q, a, return_loss=False, **kwargs):
         has_q = q is not None
         has_a = a is not None
         if has_q and has_a:
           assert q.shape[0] == a.shape[0]
-          q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0)).mean(1).split(q.size(0))
+          q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0))[0].mean(1).split(q.size(0))
         elif has_q:
           q_hs = self.extract_features(q).mean(1)  # [bs, hs]
         elif has_a:
@@ -1260,13 +1260,22 @@ class RobertaQAEmbed(FairseqDecoder):
         if return_loss:
             if not (has_q and has_a):
               raise Exception('Cannot calculate loss without both q and a')
+            
+            
+            similarity_matrix = torch.mm(q_embed,a_embed.t())
+            
+            loss = criterion(similarity_matrix, torch.arange(q_hs.shape[0]))
+            
+            '''
             q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
             a_embed_norm = a_embed / a_embed.norm(dim=1)[:,None]
+            
             similarity_matrix = torch.mm(q_embed_norm,a_embed_norm.t())
+            
             loss = ((torch.eye(q_hs.shape[0])*2-1) - similarity_matrix).norm(dim=1).mean()
-    
+            '''
             corrects = torch.arange(q_hs.shape[0]).eq(torch.argmax(similarity_matrix, axis=1)).sum()
-    
+            
             outputs = (loss,corrects)
 
         else:
