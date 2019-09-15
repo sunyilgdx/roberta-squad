@@ -1264,7 +1264,7 @@ class RobertaQAEmbed(FairseqDecoder):
             
             similarity_matrix = torch.mm(q_embed,a_embed.t())
             
-            loss = criterion(similarity_matrix, torch.arange(q_hs.shape[0]))
+            loss = self.criterion(similarity_matrix, torch.arange(q_hs.shape[0]))
             
             '''
             q_embed_norm = q_embed / q_embed.norm(dim=1)[:,None]
