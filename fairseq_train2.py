@@ -1254,8 +1254,10 @@ class RobertaQAEmbed(FairseqDecoder):
         print(a_hs)
         if has_q:
           q_embed = self.q_fnn_layer(q_hs)
+          q_embed = q_embed / q_embed.norm(dim=1)[:,None]
         if has_a:
           a_embed = self.a_fnn_layer(a_hs)
+          a_embed = a_embed / a_embed.norm(dim=1)[:,None]
 
         outputs = () 
 
