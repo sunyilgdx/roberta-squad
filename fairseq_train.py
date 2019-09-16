@@ -3,36 +3,27 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-"""
-Train a new model on one or across multiple GPUs.
-"""
 
-import collections
-import math
-import random
 
-import numpy as np
-import torch
 
-from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
-from fairseq.data import iterators
 
-from fairseq.meters import AverageMeter, StopwatchMeter
 
-from collections import OrderedDict
-import contextlib
-from itertools import chain
-import os
-import sys
 
-from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
-from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
-from fairseq.optim import lr_scheduler
-import re
-import types
+
+##############################################################################
+##############################################################################
+####
+####   Added an Ranger optimizer usable in fairseq
+####
+##############################################################################
+##############################################################################
+
+
+
 
 import torch.optim
 from fairseq.optim import FairseqOptimizer, register_optimizer
+
 from ranger import Ranger
 
 @register_optimizer('ranger')
@@ -71,6 +62,18 @@ class FairseqRanger(FairseqOptimizer):
 
 
 
+
+##############################################################################
+##############################################################################
+####
+####   Added util to make decayed learning rates in layers of transformer
+####
+##############################################################################
+##############################################################################
+
+
+
+
 def get_decayed_param_groups(named_parameters, 
                              num_layers=None, 
                              lr=3e-5, 
@@ -101,6 +104,57 @@ def get_decayed_param_groups(named_parameters,
   return lr_factors
       
       
+
+
+
+##############################################################################
+##############################################################################
+####
+####   copy from pytorch/fairseq/train.py
+####
+##############################################################################
+##############################################################################
+
+
+
+
+
+
+"""
+Train a new model on one or across multiple GPUs.
+"""
+
+import collections
+import math
+import random
+
+import numpy as np
+import torch
+
+from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
+from fairseq.data import iterators
+
+from fairseq.meters import AverageMeter, StopwatchMeter
+
+from collections import OrderedDict
+import contextlib
+from itertools import chain
+import os
+import sys
+
+from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
+from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
+from fairseq.optim import lr_scheduler
+import re
+import types
+
+
+
+
+
+
+
+
 
 
 class Trainer(object):
@@ -197,8 +251,24 @@ class Trainer(object):
         return self._lr_scheduler
 
     def _build_optimizer(self):
-        params = get_decayed_param_groups(chain(self.model.named_parameters(), self.criterion.named_parameters()), 24)
 
+        ##############################################################################
+        ##############################################################################
+        ####
+        ####   added decayed parameters if set, try later
+        ####
+        ##############################################################################
+        ##############################################################################
+
+        params = get_decayed_param_groups(chain(self.model.named_parameters(), self.criterion.named_parameters()), 24)
+        '''
+        params = list(
+            filter(
+                lambda p: p.requires_grad,
+                chain(self.model.parameters(), self.criterion.parameters()),
+            )
+        )
+        '''
         if self.args.fp16:
             if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
                 print('| WARNING: your device does NOT support faster training with --fp16, '
@@ -250,9 +320,15 @@ class Trainer(object):
                 if utils.has_parameters(self.get_criterion()):
                     self.get_criterion().load_state_dict(state['criterion'], strict=True)
             except Exception as e:
-                ####################################################################################################
-                ####################################################################################################
-                ####################################################################################################
+
+                ##############################################################################
+                ##############################################################################
+                ####
+                ####   Lazy Hack... 
+                ####
+                ##############################################################################
+                ##############################################################################
+
                 print(
                     e, 
                     'Cannot load model parameters from checkpoint {}; '
@@ -935,21 +1011,27 @@ def cli_main():
         main(args)
 
 
+##############################################################################
+##############################################################################
+####
+####   copy from fairseq... for tasks, criterion, and architectures
+####
+##############################################################################
+##############################################################################
+
+
 import os
 import numpy as np
 import torch
-from fairseq.data import (
-    data_utils,
-    Dictionary,
-    encoders,
-)
-from fairseq.tasks import FairseqTask, register_task
-from fairseq.criterions import FairseqCriterion, register_criterion
-
 import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import utils
+
+
+from fairseq.tasks import FairseqTask, register_task
+from fairseq.criterions import FairseqCriterion, register_criterion
+
 from fairseq.models import (
     FairseqDecoder,
     FairseqLanguageModel,
@@ -974,20 +1056,15 @@ from fairseq.modules import (
     TransformerSentenceEncoder,
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-
 from fairseq.models.roberta.hub_interface import RobertaHubInterface
 
 import argparse
 from fairseq.data import Dictionary
 from fairseq.optim.fp16_optimizer import MemoryEfficientFP16Optimizer
-from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT
 from glob import glob
 import numpy as np
 from torch.nn import CrossEntropyLoss
-from ranger import Ranger
-from ranger import AdamW
 import json
-from tokenizer.validate import validate
 from copy import deepcopy
 from time import time
 from multiprocessing import Pool
@@ -996,6 +1073,14 @@ import gc
 import random
 from tqdm import tqdm
 import os
+
+
+
+# specially made for roberta
+from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT
+from tokenizer.validate import validate
+
+
 
 roberta_directory = './roberta.large'
 
@@ -1010,7 +1095,19 @@ get_tokenizer = lambda: RobertaTokenizer(config_dir=roberta_directory)
 tk = tokenizer =  get_tokenizer()
 
 
-#Data Utilities
+
+
+
+
+
+
+##############################################################################
+##############################################################################
+####
+####   Data Utilities
+####
+##############################################################################
+##############################################################################
 
 import marshal
 def read(dat):
@@ -1061,11 +1158,6 @@ def chunks(l, n):
             yield l[i:i + n]
 
 def from_records(records):
-    """
-    Args:
-        records (string): Path to the csv file with annotations.
-    """
-  
     fn_style = isinstance(records,str)
     if fn_style:
       def from_file(fn):
@@ -1101,6 +1193,14 @@ def from_records(records):
 
 
 
+
+##############################################################################
+##############################################################################
+####
+####   modified from pytorch/fairseq/fairseq/model/roberta
+####
+##############################################################################
+##############################################################################
 
 
 @register_model('roberta_qa')
@@ -1197,22 +1297,6 @@ class RobertaQAModel(FairseqLanguageModel):
         return RobertaHubInterface(x['args'], x['task'], x['models'][0])
 
 
-'''
-class RobertaQAHead(nn.Module):
-    """Head for sentence-level classification tasks."""
-
-    def __init__(self, args):
-        super().__init__()
-        self.span_logits =  nn.Linear(args.encoder_embed_dim, 2)
-        self.answer_class = PoolerAnswerClass(args.encoder_embed_dim)
-
-    def forward(self, features, **kwargs):
-        start_logits, end_logits = self.span_logits(features).split(1, dim=-1)
-        cls_logits = self.answer_class(x, cls_index=cls_index)
-        x = (start_logits, end_logits, cls_logits)
-        return x
-'''
-
 class PoolerAnswerClass(nn.Module):
     """ Compute SQuAD 2.0 answer class from classification and start tokens hidden states. """
     def __init__(self, hidden_size, dropout=0.2):
@@ -1223,17 +1307,6 @@ class PoolerAnswerClass(nn.Module):
         self.dense_1 = nn.Linear(hidden_size, 1)
 
     def forward(self, hidden_states, cls_index=None):
-        """
-        Args:
-            One of ``start_states``, ``start_positions`` should be not None.
-            If both are set, ``start_positions`` overrides ``start_states``.
-            **cls_index**: torch.LongTensor of shape ``(batch_size,)``
-                position of the CLS token. If None, take the last token.
-
-            note(Original repo):
-                no dependency on end_feature so that we can obtain one single `cls_logits`
-                for each sample
-        """
 
         if cls_index is not None:
             cls_index = cls_index[:, None, None].expand(-1, -1, hsz) # shape (bsz, 1, hsz)
@@ -1244,6 +1317,7 @@ class PoolerAnswerClass(nn.Module):
 
         x = self.dense_0(cls_token_state)
         x = self.activation(x)
+        x = self.dropout(x)
         x = self.dense_1(x).squeeze(-1)
 
         return x
@@ -1323,6 +1397,16 @@ def roberta_large_architecture(args):
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 4096)
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 16)
     base_architecture(args)
+
+
+
+##############################################################################
+##############################################################################
+####
+####   modified from pytorch/fairseq/fairseq/tasks
+####
+##############################################################################
+##############################################################################
 
 
 
@@ -1407,6 +1491,17 @@ class SQuAD2Task(FairseqTask):
     @property
     def target_dictionary(self):
         return self.dictionary
+
+
+
+##############################################################################
+##############################################################################
+####
+####   modified from pytorch/fairseq/fairseq/criterions
+####
+##############################################################################
+##############################################################################
+
 
 
 @register_criterion('squad2')
