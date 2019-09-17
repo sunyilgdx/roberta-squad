@@ -19,8 +19,9 @@ roberta_directory = './roberta.large'
 
 
 max_seq_length   = 512
-max_query_length = 192
-doc_stride       = 192
+max_query_length = 128
+doc_stride       = 128
+merge_style      = 0
 
 default_choices = []
 get_tokenizer = lambda: RobertaTokenizer(config_dir=roberta_directory)
@@ -91,11 +92,6 @@ def gen(paths):
         
 import marshal
 def work(ss, debug=False):
-    global unique_index, \
-     context, \
-     qas, \
-     is_training, \
-     return_feature, rss, start_position, end_position
     
     unique_index, \
      context, \
@@ -111,6 +107,7 @@ def work(ss, debug=False):
                              default_choices = default_choices,
                              unique_index=unique_index,
                              is_training=is_training,
+                             merge_style=merge_style,
                              debug = debug
                            )
     o = 0
@@ -330,6 +327,18 @@ def _compute_softmax(scores):
 
 
 # Model Init
+
+
+##############################################################################
+##############################################################################
+####
+####   Below are using DataParallel... which is slow... 
+####   and I do not know how to use DistributedDataParallel yet
+####
+##############################################################################
+##############################################################################
+
+
 
 import sys
 eval_model = sys.argv[1]
