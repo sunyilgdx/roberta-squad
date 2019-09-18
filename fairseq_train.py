@@ -77,7 +77,7 @@ class FairseqRanger(FairseqOptimizer):
 def get_decayed_param_groups(named_parameters, 
                              num_layers=None, 
                              lr=3e-5, 
-                             lr_rate_decay=1, #0.908517, 
+                             lr_decay=0.75, #0.908517, 
                              weight_decay=None):
   lr_factors = []
   for k, v in named_parameters:
@@ -86,15 +86,15 @@ def get_decayed_param_groups(named_parameters,
       param = {
           'params': v,
       }
-      if lr_rate_decay and lr_rate_decay != 1:
+      if lr_decay and lr_decay != 1:
         factor = 1
         if 'sentence_encoder.layers' in k:
           layer = int(re.search(r'.layers.(\d+)',k).group(1))
-          factor = lr_rate_decay**(num_layers-layer)
+          factor = lr_decay**(num_layers-layer)
 
         elif 'embed_tokens.weight' in k or 'embed_positions' in k:
           layer = 0
-          factor = lr_rate_decay**(num_layers-layer)
+          factor = lr_decay**(num_layers-layer)
 
         param['lr'] = lr * factor
       if weight_decay and weight_decay != 0:
@@ -260,7 +260,7 @@ class Trainer(object):
         ##############################################################################
         ##############################################################################
 
-        params = get_decayed_param_groups(chain(self.model.named_parameters(), self.criterion.named_parameters()), 24)
+        params = get_decayed_param_groups(chain(self.model.named_parameters(), self.criterion.named_parameters()), self.args.lr_decay_layers, lr_decay=self.args.lr_decay)
         '''
         params = list(
             filter(
@@ -976,6 +976,17 @@ def distributed_main(i, args, start_rank=0):
 
 def cli_main():
     parser = options.get_training_parser()
+	##############################################################################
+	##############################################################################
+	####
+	####   Added an argument
+	####
+	##############################################################################
+	##############################################################################
+    parser.add_argument('--lr_decay', default=1, type=float, 
+                        help='Learning rate decay factor, 1.0 = no decay')
+    parser.add_argument('--lr_decay_layers', default=24, type=int, 
+                        help='Number of layers for learning rate decay')
     args = options.parse_args_and_arch(parser)
 
     if args.distributed_init_method is None:
@@ -1299,7 +1310,7 @@ class RobertaQAModel(FairseqLanguageModel):
 
 class PoolerAnswerClass(nn.Module):
     """ Compute SQuAD 2.0 answer class from classification and start tokens hidden states. """
-    def __init__(self, hidden_size, dropout=0.2):
+    def __init__(self, hidden_size, dropout=0.1):
         super(PoolerAnswerClass, self).__init__()
         self.dense_0 = nn.Linear(hidden_size, hidden_size)
         self.activation = nn.Tanh() #Mish() # nn.Tanh()
