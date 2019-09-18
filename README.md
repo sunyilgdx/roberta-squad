@@ -4,9 +4,16 @@
 
 Observations:
 1. Decayed learning rates on finetuning seems to make it more robust (?)
+2. 
+
+|    bs32   |  :  |  bs48  | = |   1 : 1.5   |                   |
+|-----------|-----|--------|---|-------------|-------------------|
+|  lr2.5e-5 |  :  | lr3e-5 | = |   1 : 1.2   |  ≈ 1 : sqrt(1.5)  |
 
 
-TLDR:
+  
+
+Table:
 
 | steps | ep | bs |  lr | lr decay | Best F1 |
 |:-----:|:--:|:--:|:---:|:--------:|:-------:|
@@ -16,7 +23,9 @@ TLDR:
 |  8144 |  2 | 32 | 2.0 |   0.75   |  88.998 |
 |  8144 |  2 | 32 | 2.5 |   0.75   |  89.477 |
 |  8144 |  2 | 32 | 3.0 |   0.75   |  89.340 |
+|  5430 |  2 | 48 | 2.5 |   0.75   |  89.229 |
 |  5430 |  2 | 48 | 3.0 |   0.75   |  *89.615* |
+|  5430 |  2 | 48 | 3.5 |   0.75   |  89.433 |
 |       |    |    |     |          |         |
 |   ??  | ?? | ?? |  ?? |    ??    |  **89.795** |
 
@@ -244,6 +253,69 @@ UPDATE_FREQ=2
   "best_exact_thresh": -1.15234375,
   "best_f1": 89.61546240072953,
   "best_f1_thresh": -1.15234375
+}
+```
+
+
+
+
+## Experiment 6 (lower lr?)
+### Run on SQuAD 2.0 Dev Set
+```c
+lr_rate_decay=0.75
+TOTAL_NUM_UPDATES=5430 
+WARMUP_UPDATES=326    
+LR=2.5e-05            
+MAX_SENTENCES=3     
+UPDATE_FREQ=2     
+```
+
+```json
+{
+  "exact": 85.48808220331846,
+  "f1": 88.58805430666887,
+  "total": 11873,
+  "HasAns_exact": 83.92375168690958,
+  "HasAns_f1": 90.13258582710525,
+  "HasAns_total": 5928,
+  "NoAns_exact": 87.04793944491169,
+  "NoAns_f1": 87.04793944491169,
+  "NoAns_total": 5945,
+  "best_exact": 86.30506190516297,
+  "best_exact_thresh": -1.650390625,
+  "best_f1": 89.22944509616022,
+  "best_f1_thresh": -1.43359375
+}
+```
+
+
+
+## Experiment 7 (how about higher? nah..)
+### Run on SQuAD 2.0 Dev Set
+```c
+lr_rate_decay=0.75
+TOTAL_NUM_UPDATES=5430 
+WARMUP_UPDATES=326    
+LR=3.5e-05            
+MAX_SENTENCES=3     
+UPDATE_FREQ=2     
+```
+
+```json
+{
+  "exact": 85.43754737640023,
+  "f1": 88.63218801250815,
+  "total": 11873,
+  "HasAns_exact": 83.29959514170041,
+  "HasAns_f1": 89.69803783274503,
+  "HasAns_total": 5928,
+  "NoAns_exact": 87.56938603868797,
+  "NoAns_f1": 87.56938603868797,
+  "NoAns_total": 5945,
+  "best_exact": 86.3555967320812,
+  "best_exact_thresh": -1.3154296875,
+  "best_f1": 89.43337341665799,
+  "best_f1_thresh": -1.28515625
 }
 ```
 
