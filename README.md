@@ -2,6 +2,24 @@
 roBERTa training for SQuAD 
 
 
+Run on SQuAD 2.0 Dev Set
+```json
+{
+  "exact": 83.4329992419776,
+  "f1": 86.7448817152165,
+  "total": 11873,
+  "HasAns_exact": 82.86099865047234,
+  "HasAns_f1": 89.49426123562206,
+  "HasAns_total": 5928,
+  "NoAns_exact": 84.00336417157276,
+  "NoAns_f1": 84.00336417157276,
+  "NoAns_total": 5945,
+  "best_exact": 85.21014065526826,
+  "best_exact_thresh": -1.6142578125,
+  "best_f1": 88.297090749954,
+  "best_f1_thresh": -1.572265625
+}
+```
 
 
 ```c
