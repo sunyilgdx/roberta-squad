@@ -1,6 +1,6 @@
-# roberta-squad
-roBERTa training for SQuAD 
+# roBERTa training for SQuAD 
 
+**Input representation:** `<s> Passage here. </s> Q: Question here? </s>`
 
 Observations:
 1. Decayed learning rates on finetuning seems to make it more robust (?)
@@ -89,7 +89,6 @@ WARMUP_UPDATES=489
 LR=1.5e-05       
 MAX_SENTENCES=4   
 UPDATE_FREQ=1    
- 
 ```
 
 ```json
@@ -128,7 +127,6 @@ WARMUP_UPDATES=489
 LR=2e-05        
 MAX_SENTENCES=4
 UPDATE_FREQ=1    
- 
 ```
 
 ```json
@@ -229,7 +227,6 @@ WARMUP_UPDATES=326
 LR=3e-05            
 MAX_SENTENCES=3     
 UPDATE_FREQ=2     
- 
 ```
 
 ```json
