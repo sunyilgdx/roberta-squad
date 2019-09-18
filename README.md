@@ -30,7 +30,7 @@ Table:
 |   ??  | ?? | ?? |  ?? |    ??    |  **89.795** |
 
 
-## Experiment 1 (According the original paper)
+## Experiment 1 (According to the original paper)
 ### Run on SQuAD 2.0 Dev Set
 
 ```c
