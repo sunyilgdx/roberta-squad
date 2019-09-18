@@ -6,8 +6,20 @@ Observations:
 1. Decayed learning rates on finetuning seems to make it more robust (?)
 
 
+TLDR:
 
-## Experiment 1
+| steps | ep | bs | lr  | lr decay | Best F1 |
+|-------|----|----|-----|----------|---------|
+| 5430  | 2  | 48 | 1.5 | 1.0      | 88.297  |
+|       |    |    |     |          |         |
+| 8144  | 2  | 32 | 1.5 | 0.75     | 88.562  |
+| 8144  | 2  | 32 | 2.0 | 0.75     | 88.998  |
+| 8144  | 2  | 32 | 2.5 | 0.75     | 89.477  |
+| 8144  | 2  | 32 | 3.0 | 0.75     | 89.340  |
+| 5430  | 2  | 48 | 3.0 | 0.75     | 89.615  |
+
+
+## Experiment 1 (According the original paper)
 ### Run on SQuAD 2.0 Dev Set
 
 ```c
@@ -18,7 +30,7 @@ LR=1.5e-05               # Peak LR for fixed LR scheduler.
 MAX_SENTENCES=3          # Batch size per GPU.
 UPDATE_FREQ=2            # Accumulate gradients to simulate training on 8 GPUs.
 DATA_DIR=qa_records_squad_q
-ROBERTA_PATH=/home/paramihk/roberta.large/model.pt
+ROBERTA_PATH=roberta.large/model.pt
 
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3.5 ./fairseq_train.py $DATA_DIR \
     --restore-file $ROBERTA_PATH \
@@ -65,41 +77,16 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3.5 ./fairseq_train.py $DATA_DIR \
 
 
 
-## Experiment 2
+## Experiment 2 (Introduce LR Decay :D)
 ### Run on SQuAD 2.0 Dev Set
 ```c
 
 lr_rate_decay=0.75
-TOTAL_NUM_UPDATES=8144 # Number of training steps.
-WARMUP_UPDATES=489     # Linearly increase LR over this many steps.
-LR=1.5e-05               # Peak LR for fixed LR scheduler.
-MAX_SENTENCES=4        # Batch size per GPU.
-UPDATE_FREQ=1          # Accumulate gradients to simulate training on 8 GPUs.
-DATA_DIR=qa_records_squad_q
-ROBERTA_PATH=/home/paramihk/roberta.large/model.pt
-
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3.5 ./fairseq_train.py $DATA_DIR \
-    --restore-file $ROBERTA_PATH \
-    --save-dir checkpoints_q_decay_0.75 \
-    --reset-optimizer --reset-dataloader --reset-meters \
-    --no-epoch-checkpoints --no-last-checkpoints --no-save-optimizer-state \
-    --task squad2 \
-    --max-positions 512 \
-    --arch roberta_qa_large \
-    --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-    --criterion squad2 \
-    --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 \
-    --clip-norm 0.0 \
-    --lr-scheduler polynomial_decay --lr $LR \
-    --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 --memory-efficient-fp16 \
-    --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_NUM_UPDATES \
-    --max-sentences $MAX_SENTENCES \
-    --required-batch-size-multiple 1 \
-    --update-freq $UPDATE_FREQ \
-    --max-update $TOTAL_NUM_UPDATES \
-    --lr_rate_decay $lr_rate_decay \
-    --ddp-backend=no_c10d \
-    --num-workers=0
+TOTAL_NUM_UPDATES=8144 
+WARMUP_UPDATES=489   
+LR=1.5e-05       
+MAX_SENTENCES=4   
+UPDATE_FREQ=1    
  
 ```
 
@@ -129,41 +116,16 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3.5 ./fairseq_train.py $DATA_DIR \
 
 
 
-## Experiment 3
+## Experiment 3 (Boost the learning rate to compensate the decayed LR!)
 ### Run on SQuAD 2.0 Dev Set
 ```c
 
 lr_rate_decay=0.75
-TOTAL_NUM_UPDATES=8144 # Number of training steps.
-WARMUP_UPDATES=489     # Linearly increase LR over this many steps.
-LR=2e-05               # Peak LR for fixed LR scheduler.
-MAX_SENTENCES=4        # Batch size per GPU.
-UPDATE_FREQ=1          # Accumulate gradients to simulate training on 8 GPUs.
-DATA_DIR=qa_records_squad_q
-ROBERTA_PATH=/home/paramihk/roberta.large/model.pt
-
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3.5 ./fairseq_train.py $DATA_DIR \
-    --restore-file $ROBERTA_PATH \
-    --save-dir checkpoints_q_decay_0.75 \
-    --reset-optimizer --reset-dataloader --reset-meters \
-    --no-epoch-checkpoints --no-last-checkpoints --no-save-optimizer-state \
-    --task squad2 \
-    --max-positions 512 \
-    --arch roberta_qa_large \
-    --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-    --criterion squad2 \
-    --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 \
-    --clip-norm 0.0 \
-    --lr-scheduler polynomial_decay --lr $LR \
-    --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 --memory-efficient-fp16 \
-    --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_NUM_UPDATES \
-    --max-sentences $MAX_SENTENCES \
-    --required-batch-size-multiple 1 \
-    --update-freq $UPDATE_FREQ \
-    --max-update $TOTAL_NUM_UPDATES \
-    --lr_rate_decay $lr_rate_decay \
-    --ddp-backend=no_c10d \
-    --num-workers=0
+TOTAL_NUM_UPDATES=8144 
+WARMUP_UPDATES=489 
+LR=2e-05        
+MAX_SENTENCES=4
+UPDATE_FREQ=1    
  
 ```
 
@@ -190,40 +152,16 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3.5 ./fairseq_train.py $DATA_DIR \
 
 
 
-## Experiment 4
+## Experiment 4 (Further!)
 ### Run on SQuAD 2.0 Dev Set
 ```c
 lr_rate_decay=0.75
-TOTAL_NUM_UPDATES=8144 # Number of training steps.
-WARMUP_UPDATES=489     # Linearly increase LR over this many steps.
-LR=2.5e-05               # Peak LR for fixed LR scheduler.
-MAX_SENTENCES=4        # Batch size per GPU.
-UPDATE_FREQ=1          # Accumulate gradients to simulate training on 8 GPUs.
-DATA_DIR=qa_records_squad_q
-ROBERTA_PATH=/home/paramihk/roberta.large/model.pt
+TOTAL_NUM_UPDATES=8144 
+WARMUP_UPDATES=489  
+LR=2.5e-05      
+MAX_SENTENCES=4 
+UPDATE_FREQ=1 
 
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3.5 ./fairseq_train.py $DATA_DIR \
-    --restore-file $ROBERTA_PATH \
-    --save-dir checkpoints_q_decay_0.75 \
-    --reset-optimizer --reset-dataloader --reset-meters \
-    --no-epoch-checkpoints --no-last-checkpoints --no-save-optimizer-state \
-    --task squad2 \
-    --max-positions 512 \
-    --arch roberta_qa_large \
-    --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-    --criterion squad2 \
-    --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 \
-    --clip-norm 0.0 \
-    --lr-scheduler polynomial_decay --lr $LR \
-    --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 --memory-efficient-fp16 \
-    --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_NUM_UPDATES \
-    --max-sentences $MAX_SENTENCES \
-    --required-batch-size-multiple 1 \
-    --update-freq $UPDATE_FREQ \
-    --max-update $TOTAL_NUM_UPDATES \
-    --lr_rate_decay $lr_rate_decay \
-    --ddp-backend=no_c10d \
-    --num-workers=0
  
 ```
 
@@ -242,6 +180,71 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3.5 ./fairseq_train.py $DATA_DIR \
   "best_exact_thresh": -1.5517578125,
   "best_f1": 89.47730538540738,
   "best_f1_thresh": -1.328125
+}
+```
+
+
+
+
+
+## Experiment 4 (Further..... too much! )
+### Run on SQuAD 2.0 Dev Set
+```c
+lr_rate_decay=0.75
+TOTAL_NUM_UPDATES=8144
+WARMUP_UPDATES=489  
+LR=3e-05          
+MAX_SENTENCES=4   
+UPDATE_FREQ=1     
+```
+
+```json
+{
+  "exact": 85.59757432830793,
+  "f1": 88.73390560223615,
+  "total": 11873,
+  "HasAns_exact": 83.9574898785425,
+  "HasAns_f1": 90.23914662877074,
+  "HasAns_total": 5928,
+  "NoAns_exact": 87.23296888141296,
+  "NoAns_f1": 87.23296888141296,
+  "NoAns_total": 5945,
+  "best_exact": 86.33875178977512,
+  "best_exact_thresh": -1.2626953125,
+  "best_f1": 89.33994325354834,
+  "best_f1_thresh": -1.259765625
+}
+```
+
+
+
+## Experiment 5 (go back to bs48!)
+### Run on SQuAD 2.0 Dev Set
+```c
+lr_rate_decay=0.75
+TOTAL_NUM_UPDATES=5430 
+WARMUP_UPDATES=326    
+LR=3e-05            
+MAX_SENTENCES=3     
+UPDATE_FREQ=2     
+ 
+```
+
+```json
+{
+  "exact": 85.7997136359808,
+  "f1": 88.8923704940676,
+  "total": 11873,
+  "HasAns_exact": 83.92375168690958,
+  "HasAns_f1": 90.117934358311,
+  "HasAns_total": 5928,
+  "NoAns_exact": 87.67031118587047,
+  "NoAns_f1": 87.67031118587047,
+  "NoAns_total": 5945,
+  "best_exact": 86.64196075128443,
+  "best_exact_thresh": -1.15234375,
+  "best_f1": 89.61546240072953,
+  "best_f1_thresh": -1.15234375
 }
 ```
 
