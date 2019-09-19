@@ -37,7 +37,7 @@ Table:
 ### Run on SQuAD 2.0 Dev Set
 
 ```c
-lr_rate_decay=1.0        
+lr_decay=1.0        
 TOTAL_NUM_UPDATES=5430   # Number of training steps.
 WARMUP_UPDATES=326       # Linearly increase LR over this many steps.
 LR=1.5e-05               # Peak LR for fixed LR scheduler.
@@ -64,7 +64,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3.5 ./fairseq_train.py $DATA_DIR \
     --required-batch-size-multiple 1 \
     --update-freq $UPDATE_FREQ \
     --max-update $TOTAL_NUM_UPDATES \
-    --lr_rate_decay $lr_rate_decay \
+    --lr_decay $lr_decay \
     --ddp-backend=no_c10d \
     --num-workers=0
 ```
