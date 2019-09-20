@@ -85,6 +85,7 @@ def get_decayed_param_groups(named_parameters,
       if not v.requires_grad:
         continue
       if freeze_transformer and ('sentence_encoder.layers' in k or 'embed_tokens.weight' in k or 'embed_positions' in k):
+        print('no grad:', k)
         v.requires_grad = False
         continue
       param = {
@@ -1090,6 +1091,11 @@ import gc
 import random
 from tqdm import tqdm
 import os
+
+
+# specially made for roberta
+from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT
+from tokenizer.validate import validate
 
 
 roberta_directory = './roberta.large'
