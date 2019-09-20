@@ -106,6 +106,7 @@ def get_decayed_param_groups(named_parameters,
         param['weight_decay'] = 0.0 if 'layer_norm' in k or 'bias' in k else weight_decay
         
       lr_factors.append(param)
+      print(params)
   return lr_factors
       
       
@@ -981,13 +982,13 @@ def distributed_main(i, args, start_rank=0):
 
 def cli_main():
     parser = options.get_training_parser()
-	##############################################################################
-	##############################################################################
-	####
-	####   Added an argument
-	####
-	##############################################################################
-	##############################################################################
+##############################################################################
+##############################################################################
+####
+####   Added an argument
+####
+##############################################################################
+##############################################################################
     parser.add_argument('--lr_decay', default=1, type=float, 
                         help='Learning rate decay factor, 1.0 = no decay')
     parser.add_argument('--lr_decay_layers', default=24, type=int, 
@@ -1342,6 +1343,7 @@ class RobertaQAEmbed(FairseqDecoder):
         has_q = q is not None
         has_a = a is not None
         batch_size = q.size(0)
+
         if has_q and has_a:
           assert q.shape[0] == a.shape[0]
           q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0))[0].mean(1).split(batch_size)
@@ -1353,10 +1355,10 @@ class RobertaQAEmbed(FairseqDecoder):
           raise Exception('??')
 
         if has_q:
-          q_embed = self.q_fnn_layer(q_hs)
+          q_embed = self.q_fnn_layer(q_hs * q.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(q_hs))
           q_embed = q_embed / q_embed.norm(dim=1)[:,None]
         if has_a:
-          a_embed = self.a_fnn_layer(a_hs)
+          a_embed = self.a_fnn_layer(a_hs * a.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(a_hs))
           a_embed = a_embed / a_embed.norm(dim=1)[:,None]
 
         outputs = () 
