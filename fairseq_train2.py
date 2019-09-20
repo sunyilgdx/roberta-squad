@@ -991,7 +991,7 @@ def cli_main():
                         help='Learning rate decay factor, 1.0 = no decay')
     parser.add_argument('--lr_decay_layers', default=24, type=int, 
                         help='Number of layers for learning rate decay')
-    parser.add_argument('--freeze_transformer', default=False, type=bool, 
+    parser.add_argument('--freeze_transformer', dest='freeze_transformer', action='store_true',
                         help='Whether to freeze the weights in transformer')
     args = options.parse_args_and_arch(parser)
 
