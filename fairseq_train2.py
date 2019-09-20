@@ -3,36 +3,27 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-"""
-Train a new model on one or across multiple GPUs.
-"""
 
-import collections
-import math
-import random
 
-import numpy as np
-import torch
 
-from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
-from fairseq.data import iterators
 
-from fairseq.meters import AverageMeter, StopwatchMeter
 
-from collections import OrderedDict
-import contextlib
-from itertools import chain
-import os
-import sys
 
-from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
-from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
-from fairseq.optim import lr_scheduler
-import re
-import types
+
+##############################################################################
+##############################################################################
+####
+####   Added an Ranger optimizer usable in fairseq
+####
+##############################################################################
+##############################################################################
+
+
+
 
 import torch.optim
 from fairseq.optim import FairseqOptimizer, register_optimizer
+
 from ranger import Ranger
 
 @register_optimizer('ranger')
@@ -71,27 +62,43 @@ class FairseqRanger(FairseqOptimizer):
 
 
 
+
+##############################################################################
+##############################################################################
+####
+####   Added util to make decayed learning rates in layers of transformer
+####
+##############################################################################
+##############################################################################
+
+
+
+
 def get_decayed_param_groups(named_parameters, 
                              num_layers=None, 
                              lr=3e-5, 
-                             lr_rate_decay=1, #0.908517, 
-                             weight_decay=None):
+                             lr_decay=0.75, #0.908517, 
+                             weight_decay=None, 
+                             freeze_transformer=False):
   lr_factors = []
   for k, v in named_parameters:
       if not v.requires_grad:
         continue
+      if freeze_transformer and ('sentence_encoder.layers' in k or 'embed_tokens.weight' in k or 'embed_positions' in k):
+        v.requires_grad = False
+        continue
       param = {
           'params': v,
       }
-      if lr_rate_decay and lr_rate_decay != 1:
+      if lr_decay and lr_decay != 1:
         factor = 1
         if 'sentence_encoder.layers' in k:
           layer = int(re.search(r'.layers.(\d+)',k).group(1))
-          factor = lr_rate_decay**(num_layers-layer)
+          factor = lr_decay**(num_layers-layer)
 
         elif 'embed_tokens.weight' in k or 'embed_positions' in k:
           layer = 0
-          factor = lr_rate_decay**(num_layers-layer)
+          factor = lr_decay**(num_layers-layer)
 
         param['lr'] = lr * factor
       if weight_decay and weight_decay != 0:
@@ -101,6 +108,57 @@ def get_decayed_param_groups(named_parameters,
   return lr_factors
       
       
+
+
+
+##############################################################################
+##############################################################################
+####
+####   copy from pytorch/fairseq/train.py
+####
+##############################################################################
+##############################################################################
+
+
+
+
+
+
+"""
+Train a new model on one or across multiple GPUs.
+"""
+
+import collections
+import math
+import random
+
+import numpy as np
+import torch
+
+from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
+from fairseq.data import iterators
+
+from fairseq.meters import AverageMeter, StopwatchMeter
+
+from collections import OrderedDict
+import contextlib
+from itertools import chain
+import os
+import sys
+
+from fairseq import checkpoint_utils, distributed_utils, models, optim, utils
+from fairseq.meters import AverageMeter, StopwatchMeter, TimeMeter
+from fairseq.optim import lr_scheduler
+import re
+import types
+
+
+
+
+
+
+
+
 
 
 class Trainer(object):
@@ -197,8 +255,24 @@ class Trainer(object):
         return self._lr_scheduler
 
     def _build_optimizer(self):
-        params = get_decayed_param_groups(chain(self.model.named_parameters(), self.criterion.named_parameters()), 24)
 
+        ##############################################################################
+        ##############################################################################
+        ####
+        ####   added decayed parameters if set, try later
+        ####
+        ##############################################################################
+        ##############################################################################
+
+        params = get_decayed_param_groups(chain(self.model.named_parameters(), self.criterion.named_parameters()), self.args.lr_decay_layers, lr_decay=self.args.lr_decay, freeze_transformer = self.args.freeze_transformer)
+        '''
+        params = list(
+            filter(
+                lambda p: p.requires_grad,
+                chain(self.model.parameters(), self.criterion.parameters()),
+            )
+        )
+        '''
         if self.args.fp16:
             if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
                 print('| WARNING: your device does NOT support faster training with --fp16, '
@@ -250,9 +324,15 @@ class Trainer(object):
                 if utils.has_parameters(self.get_criterion()):
                     self.get_criterion().load_state_dict(state['criterion'], strict=True)
             except Exception as e:
-                ####################################################################################################
-                ####################################################################################################
-                ####################################################################################################
+
+                ##############################################################################
+                ##############################################################################
+                ####
+                ####   Lazy Hack... 
+                ####
+                ##############################################################################
+                ##############################################################################
+
                 print(
                     e, 
                     'Cannot load model parameters from checkpoint {}; '
@@ -900,6 +980,19 @@ def distributed_main(i, args, start_rank=0):
 
 def cli_main():
     parser = options.get_training_parser()
+	##############################################################################
+	##############################################################################
+	####
+	####   Added an argument
+	####
+	##############################################################################
+	##############################################################################
+    parser.add_argument('--lr_decay', default=1, type=float, 
+                        help='Learning rate decay factor, 1.0 = no decay')
+    parser.add_argument('--lr_decay_layers', default=24, type=int, 
+                        help='Number of layers for learning rate decay')
+    parser.add_argument('--freeze_transformer', default=False, type=bool, 
+                        help='Whether to freeze the weights in transformer')
     args = options.parse_args_and_arch(parser)
 
     if args.distributed_init_method is None:
@@ -935,21 +1028,27 @@ def cli_main():
         main(args)
 
 
+##############################################################################
+##############################################################################
+####
+####   copy from fairseq... for tasks, criterion, and architectures
+####
+##############################################################################
+##############################################################################
+
+
 import os
 import numpy as np
 import torch
-from fairseq.data import (
-    data_utils,
-    Dictionary,
-    encoders,
-)
-from fairseq.tasks import FairseqTask, register_task
-from fairseq.criterions import FairseqCriterion, register_criterion
-
 import torch.nn as nn
 import torch.nn.functional as F
 
 from fairseq import utils
+
+
+from fairseq.tasks import FairseqTask, register_task
+from fairseq.criterions import FairseqCriterion, register_criterion
+
 from fairseq.models import (
     FairseqDecoder,
     FairseqLanguageModel,
@@ -974,20 +1073,15 @@ from fairseq.modules import (
     TransformerSentenceEncoder,
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-
 from fairseq.models.roberta.hub_interface import RobertaHubInterface
 
 import argparse
 from fairseq.data import Dictionary
 from fairseq.optim.fp16_optimizer import MemoryEfficientFP16Optimizer
-from tokenizer.roberta import RobertaTokenizer, MASKED, NOT_MASKED, IS_MAX_CONTEXT, NOT_IS_MAX_CONTEXT
 from glob import glob
 import numpy as np
 from torch.nn import CrossEntropyLoss
-from ranger import Ranger
-from ranger import AdamW
 import json
-from tokenizer.validate import validate
 from copy import deepcopy
 from time import time
 from multiprocessing import Pool
@@ -996,6 +1090,7 @@ import gc
 import random
 from tqdm import tqdm
 import os
+
 
 roberta_directory = './roberta.large'
 
@@ -1378,7 +1473,7 @@ class QAEmbedTask(FairseqTask):
 
         print('| loaded {} batches [size:{}] from: {}'.format(len(lengths), max_seq_length, path))
 
-        shuffle = np.random.permutation(len(lengths))
+        shuffle = np.arange(len(lengths))
 
         self.datasets[split] = SortDataset(
             NestedDictionaryDataset(
