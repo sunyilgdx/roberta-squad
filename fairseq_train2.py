@@ -106,7 +106,7 @@ def get_decayed_param_groups(named_parameters,
         param['weight_decay'] = 0.0 if 'layer_norm' in k or 'bias' in k else weight_decay
         
       lr_factors.append(param)
-      print(params)
+      print(param)
   return lr_factors
       
       
@@ -1349,11 +1349,11 @@ class RobertaQAEmbed(FairseqDecoder):
         batch_size = q.size(0) if has_q else a.size(0)
 
         if has_q:
-          q_hs = torch.mean(self.sentence_encoder(q, last_state_only=False)[0][-4:])[:,0,:]  # [bs, hs]
+          q_hs = torch.mean(torch.stack(self.sentence_encoder(q, last_state_only=False)[0][-4:]))[:,0,:]  # [bs, hs]
           q_embed = self.q_fnn_layer(q_hs * q.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(q_hs))
           q_embed = q_embed / q_embed.norm(dim=1)[:,None]
         if has_a:
-          a_hs = torch.mean(self.sentence_encoder(a, last_state_only=False)[0][-4:])[:,0,:]  # [bs, hs]
+          a_hs = torch.mean(torch.stack(self.sentence_encoder(a, last_state_only=False)[0][-4:]))[:,0,:]  # [bs, hs]
           a_embed = self.a_fnn_layer(a_hs * a.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(a_hs))
           a_embed = a_embed / a_embed.norm(dim=1)[:,None]
 
