@@ -1335,6 +1335,9 @@ class RobertaQAEmbed(FairseqDecoder):
             apply_bert_init=True,
             activation_fn=args.activation_fn,
         )
+		self.sentence_encoder.eval()
+		for k, v in self.sentence_encoder.eval():
+		  v.requires_grad = False
         hs = args.encoder_embed_dim
         self.q_fnn_layer = FnnLayer(hs)
         self.a_fnn_layer = FnnLayer(hs)
@@ -1342,17 +1345,17 @@ class RobertaQAEmbed(FairseqDecoder):
     def forward(self, q=None, a=None, return_loss=False, **kwargs):
         has_q = q is not None
         has_a = a is not None
-        batch_size = q.size(0)
+        if not has_q and not has_a:
+          raise Exception('??')
+        batch_size = q.size(0) if has_q else a.size(0)
 
         if has_q and has_a:
           assert q.shape[0] == a.shape[0]
-          q_hs, a_hs = self.extract_features(torch.cat([q,a],dim=0))[0].mean(1).split(batch_size)
+          q_hs, a_hs = torch.mean(self.sentence_encoder(torch.cat([q,a],dim=0), last_state_only=False)[0][-4:])[:,0,:].split(batch_size)
         elif has_q:
-          q_hs = self.extract_features(q)[0].mean(1)  # [bs, hs]
+          q_hs = torch.mean(self.sentence_encoder(q, last_state_only=False)[0][-4:])[:,0,:]  # [bs, hs]
         elif has_a:
-          a_hs = self.extract_features(a)[0].mean(1)  # [bs, hs]
-        else:
-          raise Exception('??')
+          a_hs = torch.mean(self.sentence_encoder(a, last_state_only=False)[0][-4:])[:,0,:]  # [bs, hs]
 
         if has_q:
           q_embed = self.q_fnn_layer(q_hs * q.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(q_hs))
