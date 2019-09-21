@@ -1340,13 +1340,13 @@ class RobertaQAEmbed(FairseqDecoder):
         hs = args.encoder_embed_dim
         self.q_fnn_layer = FnnLayer(hs)
         self.a_fnn_layer = FnnLayer(hs)
-		
-	def get_pooled_output_first_token_from_layers(x, layers=-4):
-		return torch.stack(self.sentence_encoder(q, last_state_only=False)[0][layers:]).mean(0)[0,:,:]
-	def get_pooled_output_first_token_from_last_layer(x):
-		return self.sentence_encoder(q, last_state_only=False)[0][-1].mean(0)[0,:,:]
-	def get_pooled_output_average_tokens_from_last_layer(x):
-		return self.sentence_encoder(q, last_state_only=True)[0][-1].mean(0) * torch.transpose(q.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(q_hs), 1,0).mean(0)
+        
+    def get_pooled_output_first_token_from_layers(x, layers=-4):
+        return torch.stack(self.sentence_encoder(q, last_state_only=False)[0][layers:]).mean(0)[0,:,:]
+    def get_pooled_output_first_token_from_last_layer(x):
+        return self.sentence_encoder(q, last_state_only=False)[0][-1].mean(0)[0,:,:]
+    def get_pooled_output_average_tokens_from_last_layer(x):
+        return self.sentence_encoder(q, last_state_only=True)[0][-1].mean(0) * torch.transpose(q.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(q_hs), 1,0).mean(0)
 
     def forward(self, q=None, a=None, return_loss=False, **kwargs):
         has_q = q is not None
