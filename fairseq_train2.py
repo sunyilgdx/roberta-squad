@@ -1340,6 +1340,13 @@ class RobertaQAEmbed(FairseqDecoder):
         hs = args.encoder_embed_dim
         self.q_fnn_layer = FnnLayer(hs)
         self.a_fnn_layer = FnnLayer(hs)
+		
+	def get_pooled_output_first_token_from_layers(x, layers=-4):
+		return torch.stack(self.sentence_encoder(q, last_state_only=False)[0][layers:]).mean(0)[0,:,:]
+	def get_pooled_output_first_token_from_last_layer(x):
+		return self.sentence_encoder(q, last_state_only=False)[0][-1].mean(0)[0,:,:]
+	def get_pooled_output_average_tokens_from_last_layer(x):
+		return self.sentence_encoder(q, last_state_only=True)[0][-1].mean(0) * torch.transpose(q.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(q_hs), 1,0).mean(0)
 
     def forward(self, q=None, a=None, return_loss=False, **kwargs):
         has_q = q is not None
@@ -1349,14 +1356,10 @@ class RobertaQAEmbed(FairseqDecoder):
         batch_size = q.size(0) if has_q else a.size(0)
 
         if has_q:
-          q_hs = torch.stack(self.sentence_encoder(q, last_state_only=False)[0][-4:])  # torch.Size([num_layer, seq_length, bs, hs])
-          q_hs = q_hs.mean(0)[0,:,:]  # [bs, hs]   , average across layers,  take the first token
-          q_embed = self.q_fnn_layer(q_hs)   # if average all tokens, needs : * q.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(q_hs)
+          q_embed = self.q_fnn_layer(self.get_pooled_output_average_tokens_from_last_layer(q))   # if average all tokens, needs : * 
           #q_embed = q_embed / q_embed.norm(dim=1)[:,None]
         if has_a:
-          a_hs = torch.stack(self.sentence_encoder(a, last_state_only=False)[0][-4:])  # torch.Size([num_layer, seq_length, bs, hs])
-          a_hs = a_hs.mean(0)[0,:,:]  # [bs, hs]   , average across layers,  take the first token
-          a_embed = self.a_fnn_layer(a_hs)
+          a_embed = self.a_fnn_layer(self.get_pooled_output_average_tokens_from_last_layer(a))
           #a_embed = a_embed / a_embed.norm(dim=1)[:,None]
 
         outputs = () 
