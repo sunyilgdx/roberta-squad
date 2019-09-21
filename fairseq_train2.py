@@ -1349,12 +1349,12 @@ class RobertaQAEmbed(FairseqDecoder):
         batch_size = q.size(0) if has_q else a.size(0)
 
         if has_q:
-          q_hs = torch.stack(self.sentence_encoder(q, last_state_only=False)[0][-4:])  # torch.Size([4, 192, 32, 768])
+          q_hs = torch.stack(self.sentence_encoder(q, last_state_only=False)[0][-4:])  # torch.Size([num_layer, seq_length, bs, hs])
           q_hs = q_hs.mean(0)[0,:,:]  # [bs, hs]
           q_embed = self.q_fnn_layer(q_hs)   # if average all tokens, needs : * q.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(q_hs)
           q_embed = q_embed / q_embed.norm(dim=1)[:,None]
         if has_a:
-          a_hs = torch.stack(self.sentence_encoder(a, last_state_only=False)[0][-4:])  # torch.Size([4, 192, 32, 768])
+          a_hs = torch.stack(self.sentence_encoder(a, last_state_only=False)[0][-4:])  # torch.Size([num_layer, seq_length, bs, hs])
           a_hs = a_hs.mean(0)[0,:,:]  # [bs, hs]
           a_embed = self.a_fnn_layer(a_hs)
           a_embed = a_embed / a_embed.norm(dim=1)[:,None]
