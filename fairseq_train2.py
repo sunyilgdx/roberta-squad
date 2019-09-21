@@ -1131,6 +1131,7 @@ def fread(f):
 def pad(list_of_tokens, 
         dtype=np.long,
         torch_tensor=None,
+        max_seq_length=max_seq_length,
         pad_idx=1):
     k = np.empty((len(list_of_tokens),max_seq_length), dtype=dtype)
     k.fill(pad_idx)
@@ -1297,7 +1298,6 @@ class RobertaQAEmbedModel(FairseqLanguageModel):
 from fairseq import utils
 
 class FnnLayer(nn.Module):
-    """ Compute SQuAD start_logits from sequence hidden states. """
     def __init__(self, hidden_size, activation_fn='gelu', dropout=0.2):
         super(FnnLayer, self).__init__()
         self.dense = nn.Linear(hidden_size, hidden_size)
@@ -1305,7 +1305,6 @@ class FnnLayer(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         
     def forward(self, hidden_states):
-
         return self.dropout(self.activation(self.dense(hidden_states))) + hidden_states
 
 
@@ -1336,7 +1335,7 @@ class RobertaQAEmbed(FairseqDecoder):
             activation_fn=args.activation_fn,
         )
 		self.sentence_encoder.eval()
-		for k, v in self.sentence_encoder.eval():
+		for v in self.sentence_encoder.parameters():
 		  v.requires_grad = False
         hs = args.encoder_embed_dim
         self.q_fnn_layer = FnnLayer(hs)
@@ -1349,18 +1348,12 @@ class RobertaQAEmbed(FairseqDecoder):
           raise Exception('??')
         batch_size = q.size(0) if has_q else a.size(0)
 
-        if has_q and has_a:
-          assert q.shape[0] == a.shape[0]
-          q_hs, a_hs = torch.mean(self.sentence_encoder(torch.cat([q,a],dim=0), last_state_only=False)[0][-4:])[:,0,:].split(batch_size)
-        elif has_q:
-          q_hs = torch.mean(self.sentence_encoder(q, last_state_only=False)[0][-4:])[:,0,:]  # [bs, hs]
-        elif has_a:
-          a_hs = torch.mean(self.sentence_encoder(a, last_state_only=False)[0][-4:])[:,0,:]  # [bs, hs]
-
         if has_q:
+          q_hs = torch.mean(self.sentence_encoder(q, last_state_only=False)[0][-4:])[:,0,:]  # [bs, hs]
           q_embed = self.q_fnn_layer(q_hs * q.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(q_hs))
           q_embed = q_embed / q_embed.norm(dim=1)[:,None]
         if has_a:
+          a_hs = torch.mean(self.sentence_encoder(a, last_state_only=False)[0][-4:])[:,0,:]  # [bs, hs]
           a_embed = self.a_fnn_layer(a_hs * a.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(a_hs))
           a_embed = a_embed / a_embed.norm(dim=1)[:,None]
 
@@ -1534,8 +1527,11 @@ class QAEmbedCriterion(FairseqCriterion):
 
     def forward(self, model, sample, reduce=True):
         # compute loss and accuracy
-        questions = pad([np.frombuffer(e, dtype=np.uint16).astype(np.int32) for e in sample['questions']],dtype=np.long, torch_tensor=torch.LongTensor).cuda()
-        answers   = pad([np.frombuffer(e, dtype=np.uint16).astype(np.int32) for e in sample['answers']],dtype=np.long, torch_tensor=torch.LongTensor).cuda()
+        questions = [np.frombuffer(e, dtype=np.uint16).astype(np.int32) for e in sample['questions']]
+        answers = [np.frombuffer(e, dtype=np.uint16).astype(np.int32) for e in sample['answers']]
+        
+        questions = pad(questions,dtype=np.long, torch_tensor=torch.LongTensor, max_seq_length=max(len(e) for e in questions)).cuda()
+        answers   = pad(answers,dtype=np.long, torch_tensor=torch.LongTensor, max_seq_length=max(len(e) for e in answers)).cuda()
         
         (loss, corrects) = model(questions, answers, return_loss=True)
 
