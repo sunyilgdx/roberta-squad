@@ -1346,8 +1346,8 @@ class RobertaQAEmbed(FairseqDecoder):
     def get_pooled_output_first_token_from_last_layer(self, x):
         return self.sentence_encoder(x, last_state_only=False)[0][-1].mean(0)[0,:,:]
     def get_pooled_output_average_tokens_from_last_layer(self, x):
-        y = self.sentence_encoder(x, last_state_only=True)[0][-1].mean(0)
-        return ( y * torch.transpose(x.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(y), 1,0)).mean(0)
+        y = self.sentence_encoder(x, last_state_only=True)[0][-1].mean(0)  #  B, T, C
+        return ( y * x.eq(self.sentence_encoder.padding_idx).unsqueeze(-1).type_as(y)).mean(0)
 
     def forward(self, q=None, a=None, return_loss=False, **kwargs):
         has_q = q is not None
