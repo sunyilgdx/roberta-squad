@@ -1334,9 +1334,9 @@ class RobertaQAEmbed(FairseqDecoder):
             apply_bert_init=True,
             activation_fn=args.activation_fn,
         )
-		self.sentence_encoder.eval()
-		for v in self.sentence_encoder.parameters():
-		  v.requires_grad = False
+        self.sentence_encoder.eval()
+        for v in self.sentence_encoder.parameters():
+          v.requires_grad = False
         hs = args.encoder_embed_dim
         self.q_fnn_layer = FnnLayer(hs)
         self.a_fnn_layer = FnnLayer(hs)
