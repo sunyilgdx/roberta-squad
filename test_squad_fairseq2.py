@@ -205,9 +205,9 @@ def evaluate(eval_dir):
 
 
   for q, a in tqdm(from_records(path)):
-	questions.append(q)
-	answers.append(a)
-	
+    questions.append(q)
+    answers.append(a)
+    
   
   records = records #[:100]
   rs = rs #[:100]
@@ -229,7 +229,7 @@ def evaluate(eval_dir):
         (loss, corrects) = roberta(q, a, return_loss=True)
         correct_count += corrects
         total_count   += len(q)
-		t.set_description('accuracy: %.6f'%(correct_count/total_count))
+        t.set_description('accuracy: %.6f'%(correct_count/total_count))
       
   print('accuracy: %.6f'%(correct_count/total_count))
   
