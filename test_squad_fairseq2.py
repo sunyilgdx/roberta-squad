@@ -204,7 +204,7 @@ def evaluate(eval_dir):
   answers = []
 
 
-  for q, a in tqdm(from_records(path)):
+  for q, a in tqdm(from_records(eval_dir)):
     questions.append(q)
     answers.append(a)
     
