@@ -149,7 +149,7 @@ log_steps = 500
 num_epochs = 2
 max_seq_length = 512
 num_cores = torch.cuda.device_count() # 8
-effective_batch_size = 64             # 8  bs per device
+effective_batch_size = 512             # 8  bs per device
 update_freq = 1                       # 4  bs per device
 fp16 = True
 class args:
