@@ -208,10 +208,6 @@ def evaluate(eval_dir):
     questions.append(q)
     answers.append(a)
     
-  
-  records = records #[:100]
-  rs = rs #[:100]
-
 
   batches = zip(chunks(questions,batch_size), chunks(answers,batch_size))
   correct_count = 0
