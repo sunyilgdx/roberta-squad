@@ -223,7 +223,7 @@ def evaluate(eval_dir):
         a = pad(a,dtype=np.long, torch_tensor=torch.LongTensor, max_seq_length=max(len(e) for e in a)).cuda()
         
         (loss, corrects) = roberta(q, a, return_loss=True)
-        correct_count += corrects.tolist()
+        correct_count += corrects.sum().tolist()
         total_count   += len(q)
         t.set_description('accuracy: %.6f'%(correct_count/total_count))
       
